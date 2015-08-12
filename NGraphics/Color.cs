@@ -255,6 +255,12 @@ namespace NGraphics
 			names ["clear"] = Colors.Clear;
 			names ["red"] = Colors.Red;
 			names ["orange"] = Colors.Orange;
+			names ["yellow"] = Colors.Yellow;
+			names ["green"] = Colors.Green;
+			names ["gray"] = Colors.Gray;
+			names ["lightgray"] = Colors.LightGray;
+			names ["darkgray"] = Colors.DarkGray;
+			names ["blue"] = Colors.Blue;
 		}
 
 		public static bool TryParse (string colorString, out Color color)

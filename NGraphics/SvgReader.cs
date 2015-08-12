@@ -418,6 +418,9 @@ namespace NGraphics
 					}
 
 					brush.AddStops(child.Stops);
+					brush.Absolute = child.Absolute;
+
+					brush.Transform = child.Transform;
 				}
 
 				XNamespace xlink = "http://www.w3.org/1999/xlink";
@@ -653,7 +656,11 @@ namespace NGraphics
 				b.Absolute = gradientUnits.Value == "userSpaceOnUse";
 			}
 
-			// TODO: check gradientTransform attribute
+			var transform = e.Attribute("gradientTransform");
+			if (transform != null)
+			{
+				b.Transform = ReadTransform(transform.Value);
+			}
 
 			ReadStops (e, b.Stops);
 
@@ -675,7 +682,11 @@ namespace NGraphics
 				b.Absolute = gradientUnits.Value == "userSpaceOnUse";
 			}
 
-			// TODO: check gradientTransform attribute
+			var transform = e.Attribute("gradientTransform");
+			if (transform != null)
+			{
+				b.Transform = ReadTransform(transform.Value);
+			}
 
 			ReadStops (e, b.Stops);
 

@@ -51,6 +51,14 @@ namespace NGraphics
 
 	public abstract class GradientBrush : Brush
 	{
+		public Transform Transform { get; set; }
+		public bool Absolute = false;
+
+		protected GradientBrush()
+		{
+			Transform = NGraphics.Transform.Identity;
+		}
+
 		public readonly List<GradientStop> Stops = new List<GradientStop> ();
 		public void AddStop (double offset, Color color)
 		{
@@ -67,7 +75,6 @@ namespace NGraphics
 		public Point Center;
 		public Point Focus;
 		public Size Radius;
-		public bool Absolute = false;
 
 		public RadialGradientBrush ()
 		{
@@ -125,7 +132,6 @@ namespace NGraphics
 	{
 		public Point Start;
 		public Point End;
-		public bool Absolute = false;
 
 		public LinearGradientBrush ()
 		{
