@@ -209,6 +209,13 @@ namespace NGraphics
 						        comps,
 						        locs,
 						        Shader.TileMode.Clamp);
+					var m = new Matrix ();
+					m.SetValues (new[] {
+						(float)lgb.Transform.A, (float)lgb.Transform.C, (float)lgb.Transform.E,
+						(float)lgb.Transform.B, (float)lgb.Transform.D, (float)lgb.Transform.F,
+						0, 0, 1,
+					});
+					lg.SetLocalMatrix(m);
 					paint.SetShader (lg);
 				}
 				return;
@@ -233,7 +240,13 @@ namespace NGraphics
 						        comps,
 						        locs,
 						        Shader.TileMode.Clamp);
-
+					var m = new Matrix ();
+					m.SetValues (new[] {
+						(float)rgb.Transform.A, (float)rgb.Transform.C, (float)rgb.Transform.E,
+						(float)rgb.Transform.B, (float)rgb.Transform.D, (float)rgb.Transform.F,
+						0, 0, 1,
+					});
+					rg.SetLocalMatrix(m);
 					paint.SetShader (rg);
 				}
 				return;
