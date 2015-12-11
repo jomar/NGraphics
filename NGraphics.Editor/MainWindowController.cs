@@ -37,6 +37,21 @@ namespace NGraphics.Editor
 			Editor.AutomaticSpellingCorrectionEnabled = false;
 			Editor.AutomaticTextReplacementEnabled = false;
 
+
+			Prev.ImageRenderedDelegate = () => {
+				this.BeginInvokeOnMainThread (() => {
+					if (!string.IsNullOrEmpty(Prev.Error))
+					{
+						Errors.TextColor = NSColor.Red;
+						Errors.Value = Prev.Error;
+					} else {
+						Errors.TextColor = NSColor.Black;
+						Errors.Value = "Content parsed in " + (EndParseTime - StartParseTime).TotalMilliseconds.ToString() + "ms" +
+							"\nImage rendered in " + Prev.RenderTime.TotalMilliseconds + "ms";
+					}
+				});
+			};
+
 			Editor.Value = Code;
 			HandleTextChanged ();
 			HandleThrottledTextChanged ();
@@ -68,13 +83,14 @@ namespace NGraphics.Editor
 		}
 
 		static readonly Regex svgRe = new Regex (@"<svg.*?>.+<\/svg>", RegexOptions.Singleline);
+		private DateTime StartParseTime { get; set; }
+		private DateTime EndParseTime { get; set; }
 
 		void ParseSVG()
 		{
 			Task.Run(() => {
 				string svg = null;
 				CoreGraphics.CGRect previewSize = CoreGraphics.CGRect.Empty;
-				string error = null;
 
 				this.InvokeOnMainThread (() => {
 					Prev.Drawables = null;
@@ -82,8 +98,8 @@ namespace NGraphics.Editor
 					svg = Code;
 				});
 
-				DateTime startParse = DateTime.Now;
 				try {
+					StartParseTime = DateTime.Now;
 					var reader = new SvgReader(new System.IO.StringReader(svg));
 					if (reader.Graphic != null)
 					{
@@ -92,26 +108,18 @@ namespace NGraphics.Editor
 						Prev.Drawables = new IDrawable[] { reader.Graphic };
 					}
 				} catch (Exception ex) {
-					error = ex.Message;
+					Prev.Error = ex.Message;
+				} finally {
+					EndParseTime = DateTime.Now;
 				}
-				this.BeginInvokeOnMainThread(() => {
-					if (!string.IsNullOrEmpty(error))
-					{
-						Errors.TextColor = NSColor.Red;
-						Errors.Value = error;
-					} else {
-						Errors.TextColor = NSColor.Black;
-						Errors.Value = "Content parsed in " + (DateTime.Now - startParse).TotalMilliseconds.ToString() + "ms";
-					}
-
-					Prev.SetNeedsDisplayInRect (previewSize);
-
-				});
+				Prev.SetNeedsDisplayInRect (previewSize);
 			});
 		}
 
 		void HandleThrottledTextChanged ()
 		{
+			Prev.Error = null;
+
 			if (svgRe.IsMatch(Code))
 				ParseSVG();
 			else
@@ -135,6 +143,7 @@ namespace NGraphics.Editor
 			}
 
 			// Start a new request
+			StartParseTime = DateTime.Now;
 			request = new CompileRequest (Code, AcceptCompileResult);
 		}
 
@@ -146,16 +155,17 @@ namespace NGraphics.Editor
 						Console.WriteLine ("NEW RESULT {0}", this.result);
 						this.result = result;
 
-						Errors.Value = result.Errors ?? "";
-						Errors.TextColor = NSColor.Red;
+						Prev.Error = result.Errors ?? "";
 					
 						if (string.IsNullOrEmpty (result.Errors)) {
 							Prev.Drawables = result.Drawables;
-							Prev.SetNeedsDisplayInRect (Prev.Bounds);
 						}
+						Prev.SetNeedsDisplayInRect (Prev.Bounds);
 					}
 				} catch (Exception ex) {
 					Console.WriteLine (ex);
+				} finally {
+					EndParseTime = DateTime.Now;
 				}
 			});
 		}
