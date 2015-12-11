@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace NGraphics
 {
@@ -44,6 +45,19 @@ namespace NGraphics
 		public Pen WithColor (Color color)
 		{
 			return new Pen (color, Width);
+		}
+	}
+
+	public abstract class GradientPen : Pen
+	{
+		public readonly List<GradientStop> Stops = new List<GradientStop> ();
+		public void AddStop (double offset, Color color)
+		{
+			Stops.Add (new GradientStop (offset, color));
+		}
+		public void AddStops (IEnumerable<GradientStop> stops)
+		{
+			Stops.AddRange(stops);
 		}
 	}
 }

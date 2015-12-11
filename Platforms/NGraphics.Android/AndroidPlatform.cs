@@ -76,6 +76,16 @@ namespace NGraphics
 			bitmap.Compress (Bitmap.CompressFormat.Png, 100, stream);
 		}
 
+		public byte[] GetBytes()
+		{
+			int bytes = bitmap.ByteCount;
+
+			var buffer = Java.Nio.ByteBuffer.Allocate(bytes);
+			bitmap.CopyPixelsToBuffer(buffer);
+
+			return buffer.ToArray<byte>();
+		}
+
 		public Size Size
 		{
 			get

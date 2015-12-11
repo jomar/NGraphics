@@ -76,6 +76,10 @@ namespace NGraphics
 			public void SaveAsPng (Stream stream)
 			{
 			}
+			public byte[] GetBytes()
+			{
+				return null;
+			}
 		}
 	}
 }

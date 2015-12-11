@@ -73,6 +73,11 @@ namespace NGraphics
 			image.Save (stream, ImageFormat.Png);
 		}
 
+		public byte[] GetBytes()
+		{
+			throw new NotImplementedException();
+		}
+
 		public Size Size
 		{
 			get
@@ -259,7 +264,7 @@ namespace NGraphics
 			if (ii != null) {
 				if (alpha < 0.999) {
 					var i = new ImageAttributes ();
-					var mat = new ColorMatrix (new float[][] { 
+					var mat = new System.Drawing.Imaging.ColorMatrix (new float[][] { 
 						new[] { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
 						new[] { 0.0f, 1.0f, 0.0f, 0.0f, 0.0f },
 						new[] { 0.0f, 0.0f, 1.0f, 0.0f, 0.0f },

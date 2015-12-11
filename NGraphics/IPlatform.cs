@@ -14,6 +14,8 @@ namespace NGraphics
 
 	public static class PlatformEx
 	{
+		public static IPlatform CurrentPlatform;
+
 		public static IImage CreateImage (this IPlatform platform, Func<int, int, Color> colorFunc, Size size, double scale = 1.0)
 		{
 			var w = (int)Math.Ceiling (size.Width);

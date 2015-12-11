@@ -101,7 +101,6 @@ namespace NGraphics
 				{
 					var x = ReadNumber (e.Attribute ("x"));
 					var y = ReadNumber (e.Attribute ("y"));
-					var text = e.Value.Trim ();
 					var font = new Font ();
 					var fontFamily = ReadTextFontFamily(e);
 					if (!string.IsNullOrEmpty(fontFamily))
@@ -109,8 +108,53 @@ namespace NGraphics
 					var fontSize = ReadTextFontSize(e);
 					if (fontSize >= 0)
 						font.Size = fontSize;
-					TextAlignment textAlignment = ReadTextAlignment(e);
-					r = new Text (text, new Rect (new Point (x, y), new Size (double.MaxValue, double.MaxValue)), font, textAlignment, pen, brush);
+					TextAlignment textAlignment = ReadTextAlignment(e, TextAlignment.Left);
+					var nodes = e.Nodes();
+					if (nodes != null && nodes.Count() > 0)
+					{
+						var g = new Group ();
+						foreach(var node in nodes) {
+							if (node.NodeType == System.Xml.XmlNodeType.Text) {
+								var ttext = node.ToString().Trim();
+								var textEntry = new Text (ttext, new Rect (new Point (x, y), new Size (double.MaxValue, double.MaxValue)), font, textAlignment, pen, brush);
+								g.Children.Add(textEntry);
+							} else if (node.NodeType == System.Xml.XmlNodeType.Element && (node as XElement).Name.LocalName == "tspan") {
+								var tspan = node as XElement;
+								if (!string.IsNullOrWhiteSpace(tspan.Value))
+								{
+									var dText = tspan.Value.Trim();
+									var dX = tspan.Attribute("x") != null ? ReadNumber(tspan.Attribute("x")) : x;
+									var dY = tspan.Attribute("y") != null ? ReadNumber(tspan.Attribute("y")) : x;
+
+									bool tspanHasPen = false;
+									bool tspanHasBrush = false;
+									Brush tspanBrush = null;
+									Pen tspanPen = null;
+									ApplyStyle (ParseStyle(tspan.Attribute ("style") != null ? tspan.Attribute ("style").Value : null), ref pen, out hasPen, ref brush, out hasBrush);
+
+									tspanPen = tspanHasPen ? tspanPen : pen;
+									tspanBrush = tspanHasBrush ? tspanBrush : brush;
+
+									var dFont = new Font (font.Name, font.Size);
+									dFont.Family = font.Family;
+									var dFontFamily = ReadTextFontFamily(tspan);
+									if (!string.IsNullOrEmpty(dFontFamily))
+										font.Family = dFontFamily;
+									var dFontSize = ReadTextFontSize(tspan);
+									if (dFontSize >= 0)
+										font.Size = dFontSize;
+									TextAlignment dTextAlignment = ReadTextAlignment(tspan, textAlignment);
+
+									var dR = new Text (dText, new Rect (new Point (dX, dY), new Size (double.MaxValue, double.MaxValue)), dFont, dTextAlignment, tspanPen, tspanBrush);
+									g.Children.Add(dR);
+								}
+							}
+						}
+						r = g;
+					} else {
+						var text = e.Value.Trim();
+						r = new Text (text, new Rect (new Point (x, y), new Size (double.MaxValue, double.MaxValue)), font, textAlignment, pen, brush);
+					}
 				}
 				break;
 			case "rect":
@@ -814,7 +858,7 @@ namespace NGraphics
 			return value;
 		}
 
-		TextAlignment ReadTextAlignment(XElement element)
+		TextAlignment ReadTextAlignment(XElement element, TextAlignment defaultValue)
 		{
 			string value = null;
 			if (element != null)
@@ -836,8 +880,10 @@ namespace NGraphics
 				return TextAlignment.Left;
 			else if (value == "end")
 				return TextAlignment.Right;
-			else
+			else if (value == "middle")
 				return TextAlignment.Center;
+			else
+				return defaultValue;
 		}
 
 		double ReadNumber (XAttribute a)

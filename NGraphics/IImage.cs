@@ -10,6 +10,7 @@ namespace NGraphics
 		double Scale { get; }
 		void SaveAsPng (string path);
 		void SaveAsPng (Stream stream);
+		byte[] GetBytes();
 	}	
 
 	public interface IImageCanvas : ICanvas

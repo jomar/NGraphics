@@ -26,6 +26,7 @@ namespace NGraphics
 					current = new SystemDrawingPlatform ();
 					#endif
 				}
+				PlatformEx.CurrentPlatform = current;
 				return current;
 			}
 		}

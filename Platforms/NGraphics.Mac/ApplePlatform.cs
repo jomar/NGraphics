@@ -165,6 +165,26 @@ namespace NGraphics
 				data.AsStream ().CopyTo (stream);
 			}
 		}
+
+		public byte[] GetBytes()
+		{
+			int width = (int)image.Width;
+			int height = (int)image.Height;
+			var bytesPerPixel = 4;
+			var bytesPerRow = bytesPerPixel * width;
+			var bitsPerComponent = 8;
+
+			var rawData = new byte[height*bytesPerRow];
+
+			using (var colorSpace = CGColorSpace.CreateDeviceRGB())
+			{
+			    using (var context = new CGBitmapContext(rawData, width, height, bitsPerComponent, bytesPerRow, colorSpace, CGBitmapFlags.ByteOrder32Big | CGBitmapFlags.PremultipliedLast))
+			    {
+			        context.DrawImage(new CGRect(0, 0, width, height), image);
+			    }
+			}
+			return rawData;
+		}
 	}
 
 	public class CGContextCanvas : ICanvas
@@ -276,7 +296,17 @@ namespace NGraphics
 
 				using (var l = new CTLine (atext)) {
 					context.SaveState ();
-					context.TranslateCTM ((nfloat)(pt.X), (nfloat)(pt.Y));
+					if (alignment == TextAlignment.Left)
+						context.TranslateCTM ((nfloat)(pt.X), (nfloat)(pt.Y));
+					else {
+						nfloat asc, desc, lead;
+						var width = l.GetTypographicBounds (out asc, out desc, out lead);
+
+						if (alignment == TextAlignment.Right)
+							context.TranslateCTM ((nfloat)(pt.X-width), (nfloat)(pt.Y));
+						else
+							context.TranslateCTM ((nfloat)(pt.X - width /2), (nfloat)(pt.Y));
+					}
 					context.TextPosition = CGPoint.Empty;
 					l.Draw (context);
 					context.RestoreState ();
@@ -295,6 +325,7 @@ namespace NGraphics
 				context.SaveState ();
 				var frame = add ();
 				context.Clip ();
+				Transform(lgb.Transform);
 				CGGradientDrawingOptions options = CGGradientDrawingOptions.DrawsBeforeStartLocation | CGGradientDrawingOptions.DrawsAfterEndLocation;
 				var size = frame.Size;
 				var start = Conversions.GetCGPoint (lgb.Absolute ? lgb.Start : frame.Position + lgb.Start * size);
@@ -310,6 +341,7 @@ namespace NGraphics
 				context.SaveState ();
 				var frame = add ();
 				context.Clip ();
+				Transform(rgb.Transform);
 				CGGradientDrawingOptions options = CGGradientDrawingOptions.DrawsBeforeStartLocation | CGGradientDrawingOptions.DrawsAfterEndLocation;
 				var size = frame.Size;
 				var start = Conversions.GetCGPoint (rgb.GetAbsoluteCenter (frame));
@@ -418,6 +450,7 @@ namespace NGraphics
 
 			}, pen, brush);
 		}
+
 		public void DrawRectangle (Rect frame, Pen pen = null, Brush brush = null)
 		{
 			if (pen == null && brush == null)
@@ -428,6 +461,7 @@ namespace NGraphics
 				return frame;
 			}, pen, brush);
 		}
+
 		public void DrawEllipse (Rect frame, Pen pen = null, Brush brush = null)
 		{
 			if (pen == null && brush == null)
