@@ -69,13 +69,13 @@ namespace NGraphics
 			AddElements (Graphic.Children, svg.Elements (), null, Brushes.Black);
 		}
 
-		void AddElements (IList<IDrawable> list, IEnumerable<XElement> es, Pen inheritPen, Brush inheritBrush)
+		void AddElements (IList<Element> list, IEnumerable<XElement> es, Pen inheritPen, Brush inheritBrush)
 		{
 			foreach (var e in es)
 				AddElement (list, e, inheritPen, inheritBrush);
 		}
 
-		void AddElement (IList<IDrawable> list, XElement e, Pen inheritPen, Brush inheritBrush)
+		void AddElement (IList<Element> list, XElement e, Pen inheritPen, Brush inheritBrush)
 		{
 			//
 			// Style
@@ -163,7 +163,12 @@ namespace NGraphics
 					var y = ReadNumber (e.Attribute ("y"));
 					var width = ReadNumber (e.Attribute ("width"));
 					var height = ReadNumber (e.Attribute ("height"));
-					r = new Rectangle (new Point (x, y), new Size (width, height), pen, brush);
+					var rx = ReadNumber (e.Attribute ("rx"));
+					var ry = ReadNumber (e.Attribute ("ry"));
+					if (ry == 0) {
+						ry = rx;
+					}
+					r = new Rectangle (new Rect (new Point (x, y), new Size (width, height)), new Size (rx, ry), pen, brush);
 				}
 				break;
 			case "ellipse":
@@ -230,9 +235,9 @@ namespace NGraphics
 					if (!string.IsNullOrWhiteSpace (href)) {
 						XElement useE;
 						if (defs.TryGetValue (href.Trim ().Replace ("#", ""), out useE)) {
-							var useList = new List<IDrawable> ();
+							var useList = new List<Element> ();
 							AddElement (useList, useE, pen, brush);
-							r = useList.OfType<Element> ().FirstOrDefault ();
+							r = useList.FirstOrDefault ();
 						}
 					}
 				}
@@ -647,17 +652,28 @@ namespace NGraphics
 			var i = 0;
 			var n = args.Length;
 			if (n == 0)
-				throw new Exception ("Not supported point");
+				throw new Exception ("No points specified");
 			while (i < n) {
 				var xy = args[i].Split(new[]{','}, StringSplitOptions.RemoveEmptyEntries);
-				var x = ReadNumber (xy[0]);
-				var y = ReadNumber (xy[1]);
+				var x = 0.0;
+				var y = 0.0;
+				var di = 1;
+				if (xy.Length == 1) {
+					x = ReadNumber (args [i]);
+					y = ReadNumber (args [i + 1]);
+					di = 2;
+				}
+				else {
+					x = ReadNumber (xy[0]);
+					y = ReadNumber (xy[1]);
+				}
 
 				if (i == 0) {
 					p.MoveTo (x, y);
-				} else
+				} else {
 					p.LineTo (x, y);
-				i++;
+				}
+				i += di;
 			}
 			if (closePath)
 				p.Close ();

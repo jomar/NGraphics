@@ -46,6 +46,11 @@ namespace NGraphics
 		{
 			return new Pen (color, Width);
 		}
+
+		public override string ToString ()
+		{
+			return string.Format ("Pen ({0}, {1})", Color, Width);
+		}
 	}
 
 	public abstract class GradientPen : Pen

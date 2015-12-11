@@ -45,7 +45,7 @@ namespace NGraphics
 
 		public override string ToString ()
 		{
-			return string.Format ("matrix({0}, {1}, {2}, {3}, {4}, {5})", A, B, C, D, E, F);
+			return string.Format ("Transform ({0}, {1}, {2}, {3}, {4}, {5})", A, B, C, D, E, F);
 		}
 
 		public Point TransformPoint (Point point)
@@ -53,6 +53,16 @@ namespace NGraphics
 			return new Point (
 				A * point.X + C * point.Y + E,
 				B * point.X + D * point.Y + F);
+		}
+
+		public Rect TransformRect (Rect rect)
+		{
+			var bbb = new BoundingBoxBuilder ();
+			bbb.Add (TransformPoint (rect.TopLeft));
+			bbb.Add (TransformPoint (rect.BottomLeft));
+			bbb.Add (TransformPoint (rect.BottomRight));
+			bbb.Add (TransformPoint (rect.TopRight));
+			return bbb.BoundingBox;
 		}
 
 		public static Transform operator * (Transform x, Transform y)
@@ -81,9 +91,24 @@ namespace NGraphics
 			return Translate (point.X, point.Y);
 		}
 
-		public static Transform Scale (double x, double y)
+		public static Transform Scale (double sx, double sy)
 		{
-			return new Transform (x, 0, 0, y, 0, 0);
+			return new Transform (sx, 0, 0, sy, 0, 0);
+		}
+
+		public static Transform ScaleAt (double sx, double sy, double x, double y)
+		{
+			return Transform.Translate (x, y) * Transform.Scale (sx, sy) * Transform.Translate (-x, -y);
+		}
+
+		public static Transform ScaleAt (double sx, double sy, Point p)
+		{
+			return ScaleAt (sx, sy, p.X, p.Y);
+		}
+
+		public static Transform ScaleAt (double scale, Point p)
+		{
+			return ScaleAt (scale, scale, p.X, p.Y);
 		}
 
 		public static Transform Scale (double scale)
@@ -107,6 +132,29 @@ namespace NGraphics
 			var ca = Math.Cos (a);
 			var sa = Math.Sin (a);
 			return new Transform (ca, sa, -sa, ca, 0, 0);
+		}
+
+		public static Transform StretchFillRect (Rect sourceRect, Rect destRect)
+		{
+			var t1 = Transform.Translate (-sourceRect.TopLeft);
+			var s = Transform.Scale (destRect.Width / sourceRect.Width, destRect.Height / sourceRect.Height);
+			var t2 = Transform.Translate (destRect.TopLeft);
+			return t2 * s * t1;
+		}
+
+		public static Transform AspectFillRect (Rect sourceRect, Rect destRect)
+		{
+			var scalex = destRect.Width / sourceRect.Width;
+			var scaley = destRect.Height / sourceRect.Height;
+			var scale = Math.Min (scalex, scaley);
+
+			var t1 = Transform.Translate (-sourceRect.TopLeft);
+			var s = Transform.Scale (scale);
+			var t2 = Transform.Translate (destRect.TopLeft);
+			var t3 = Transform.Translate (
+				(destRect.Width - scale * sourceRect.Width)/2,
+				(destRect.Height - scale * sourceRect.Height)/2);
+			return t3 * t2 * s * t1;
 		}
 
 		public Transform GetInverse ()

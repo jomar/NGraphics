@@ -20,9 +20,39 @@ namespace NGraphics
 			Alignment = alignment;
 		}
 
+		protected override Element CreateUninitializedClone ()
+		{
+			return new Text (String, Frame, Font, Alignment);
+		}
+
+		public override Element TransformGeometry (Transform transform)
+		{
+			throw new NotImplementedException ();
+		}
+
+		public override bool Contains (Point point)
+		{
+			throw new NotImplementedException ();
+		}
+
 		protected override void DrawElement (ICanvas canvas)
 		{
 			canvas.DrawText (String, Frame, Font, Alignment, Pen, Brush);
 		}
+
+		#region implemented abstract members of Element
+
+		public override EdgeSamples[] GetEdgeSamples (double tolerance, int minSamples, int maxSamples)
+		{
+			return new EdgeSamples[0];
+		}
+
+		public override Rect SampleableBox {
+			get {
+				return Frame;
+			}
+		}
+
+		#endregion
 	}
 }

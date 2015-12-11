@@ -4,9 +4,9 @@ using System.Linq;
 
 namespace NGraphics
 {
-	public class Graphic : IDrawable
+	public class Graphic : IDrawable, IEdgeSampleable
 	{
-		public readonly List<IDrawable> Children = new List<IDrawable> ();
+		public readonly List<Element> Children = new List<Element> ();
 
 		public Size Size;
 		public Rect ViewBox;
@@ -22,6 +22,26 @@ namespace NGraphics
 		public Graphic (Size size)
 			: this (size, new Rect (Point.Zero, size))
 		{
+		}
+
+		public Graphic Clone ()
+		{
+			var g = new Graphic (Size, ViewBox) {
+				Title = Title,
+				Description = Description,
+			};
+
+			g.Children.AddRange (Children.Select (x => x.Clone ()));
+
+			return g;
+		}
+
+		public Graphic TransformGeometry (Transform transform)
+		{
+			var clone = Clone ();
+			clone.Children.Clear ();
+			clone.Children.AddRange (Children.Select (x => x.TransformGeometry (transform)));
+			return clone;
 		}
 
 		public void Draw (ICanvas canvas)
@@ -73,5 +93,30 @@ namespace NGraphics
 				return "Graphic with errors!";
 			}
 		}
+
+		public Element[] HitTest (Point worldPoint)
+		{
+			return Children.Where (x => x.HitTest (worldPoint)).Reverse().ToArray ();
+		}
+
+		#region ISampleable implementation
+
+		public EdgeSamples[] GetEdgeSamples (double tolerance, int minSamples, int maxSamples)
+		{
+			var r = new List<EdgeSamples> ();
+			foreach (var c in Children.OfType<IEdgeSampleable> ()) {
+				r.AddRange (c.GetEdgeSamples (tolerance, minSamples, maxSamples));
+			}
+			return r.ToArray ();
+		}
+
+		[System.Runtime.Serialization.IgnoreDataMember]
+		public Rect SampleableBox {
+			get {
+				return ViewBox;
+			}
+		}
+
+		#endregion
 	}
 }

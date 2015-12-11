@@ -36,8 +36,44 @@ namespace NGraphics
 			return point - d;
 		}
 
+		public double DistanceTo (Point p)
+		{
+			return Math.Sqrt ((X - p.X) * (X - p.X) + (Y - p.Y) * (Y - p.Y));
+		}
+
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public double Distance {
 			get { return Math.Sqrt (X * X + Y * Y); }
+		}
+
+		[System.Runtime.Serialization.IgnoreDataMember]
+		public double DistanceSquared {
+			get { return X * X + Y * Y; }
+		}
+			
+		public double DistanceToLineSegment (Point lineStart, Point lineEnd)
+		{
+			// http://paulbourke.net/geometry/pointlineplane/
+			var d21 = lineEnd - lineStart;
+			var denom = d21.DistanceSquared;
+			if (denom == 0)
+				return lineStart.DistanceTo (lineStart);
+			var d31 = this - lineStart;
+
+			var u = d21.Dot (d31) / denom;
+
+			if (u <= 0)
+				return lineStart.DistanceTo (this);
+
+			if (u >= 1)
+				return lineEnd.DistanceTo (this);
+
+			return DistanceTo (lineStart + u * d21);
+		}
+
+		public double Dot (Point b)
+		{
+			return X * b.X + Y * b.Y;
 		}
 
 		public override bool Equals (object obj)

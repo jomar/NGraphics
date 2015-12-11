@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Collections.Generic;
 
 namespace NGraphics
 {
@@ -10,18 +11,29 @@ namespace NGraphics
 		public double Width;
 		public double Height;
 
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public double Left { get { return X; } }
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public double Top { get { return Y; } }
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public double Right { get { return X + Width; } }
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public double Bottom { get { return Y + Height; } }
 
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public Point Position { get { return new Point (X, Y); } }
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public Size Size { get { return new Size (Width, Height); } }
 
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public Point TopLeft { get { return new Point (X, Y); } }
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public Point BottomLeft { get { return new Point (X, Y + Height); } }
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public Point Center { get { return new Point (X + Width/2, Y + Height/2); } }
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public Point TopRight { get { return new Point (X + Width, Y); } }
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public Point BottomRight { get { return new Point (X + Width, Y + Height); } }
 
 		public Rect (double x, double y, double width, double height)
@@ -72,6 +84,15 @@ namespace NGraphics
 			return new Rect (a.X - offset.X, a.Y - offset.Y, a.Width, a.Height);
 		}
 
+		public static Rect operator + (Rect a, Size offset)
+		{
+			return new Rect (a.X + offset.Width, a.Y + offset.Height, a.Width, a.Height);
+		}
+		public static Rect operator - (Rect a, Size offset)
+		{
+			return new Rect (a.X - offset.Width, a.Y - offset.Height, a.Width, a.Height);
+		}
+
 		public static Rect operator * (Rect a, Size s)
 		{
 			return new Rect (a.X * s.Width, a.Y * s.Height, a.Width * s.Width, a.Height * s.Height);
@@ -79,6 +100,18 @@ namespace NGraphics
 		public static Rect operator * (Size s, Rect a)
 		{
 			return new Rect (a.X * s.Width, a.Y * s.Height, a.Width * s.Width, a.Height * s.Height);
+		}
+
+		public Rect GetInflated (double dx, double dy)
+		{
+			var r = this;
+			r.Inflate (dx, dy);
+			return r;
+		}
+
+		public Rect GetInflated (Size padding)
+		{
+			return GetInflated (padding.Width, padding.Height);
 		}
 
 		public void Inflate (Size padding)
@@ -94,6 +127,15 @@ namespace NGraphics
 			Height += 2*dy;
 		}
 
+		public Rect Union (Rect p)
+		{
+			var x = Math.Min (p.X, X);
+			var y = Math.Min (p.Y, Y);
+			var r = Math.Max (p.Right, Right);
+			var b = Math.Max (p.Bottom, Bottom);
+			return new Rect (x, y, r - x, b - y);
+		}
+
 		public Rect Union (Point p)
 		{
 			var x = Math.Min (p.X, X);
@@ -101,6 +143,21 @@ namespace NGraphics
 			var r = Math.Max (p.X, Right);
 			var b = Math.Max (p.Y, Bottom);
 			return new Rect (x, y, r - x, b - y);
+		}
+
+		public static Rect Union (IEnumerable<Rect> rects)
+		{
+			var res = new Rect ();
+			var hasr = false;
+			foreach (var r in rects) {
+				if (hasr) {
+					res = res.Union (r);
+				} else {
+					res = r;
+					hasr = true;
+				}
+			}
+			return res;
 		}
 
 		public Rect MoveInto (Rect frame)
@@ -125,6 +182,11 @@ namespace NGraphics
 		{
 			return ((Right >= other.Left && Left <= other.Right) &&
 					(Bottom >= other.Top && Top <= other.Bottom));
+		}
+
+		public double DistanceTo (Point point)
+		{
+			throw new NotImplementedException ();
 		}
 
 		public override string ToString ()

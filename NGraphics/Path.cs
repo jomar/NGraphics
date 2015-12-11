@@ -1,13 +1,18 @@
 ﻿using System;
 using System.Globalization;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace NGraphics
 {
 	public abstract class PathOp
 	{
 		public abstract Point GetContinueCurveControlPoint ();
-		public abstract Point EndPoint { get; }
+		public abstract Point GetEndPoint (Point startPoint);
+		public Point EndPoint { get { return GetEndPoint (Point.Zero); } }
+		public abstract EdgeSamples[] GetEdgeSamples (Point startPoint, Point prevPoint, double tolerance, int minSamples, int maxSamples);
+		public abstract PathOp Clone ();
+		public abstract void TransformGeometry (Point prevPoint, Transform transform);
 	}
 	public class MoveTo : PathOp
 	{
@@ -20,13 +25,33 @@ namespace NGraphics
 			: this (new Point (x, y))
 		{
 		}
+		public override PathOp Clone ()
+		{
+			return new MoveTo (Point);
+		}
+
 
 		public override Point GetContinueCurveControlPoint ()
 		{
 			return Point;
 		}
 
-		public override Point EndPoint { get { return Point; }}
+		public override Point GetEndPoint (Point startPoint) { return Point; }
+
+		public override EdgeSamples[] GetEdgeSamples (Point startPoint, Point prevPoint, double tolerance, int minSamples, int maxSamples)
+		{
+			return new EdgeSamples[0];
+		}
+
+		public override void TransformGeometry (Point prevPoint, Transform transform)
+		{
+			Point = transform.TransformPoint (Point);
+		}
+
+		public override string ToString ()
+		{
+			return string.Format ("MoveTo ({0})", Point);
+		}
 	}
 	public class LineTo : PathOp
 	{
@@ -39,12 +64,32 @@ namespace NGraphics
 			: this (new Point (x, y))
 		{
 		}
+		public override PathOp Clone ()
+		{
+			return new LineTo (Point);
+		}
 		public override Point GetContinueCurveControlPoint ()
 		{
 			return Point;
 		}
 
-		public override Point EndPoint { get { return Point; }}
+		public override Point GetEndPoint (Point startPoint) { return Point; }
+
+		public override EdgeSamples[] GetEdgeSamples (Point startPoint, Point prevPoint, double tolerance, int minSamples, int maxSamples)
+		{
+			var ps = Element.SampleLine (prevPoint, Point, true, tolerance, minSamples, maxSamples);
+			return new [] { new EdgeSamples { Points = ps } };
+		}
+
+		public override void TransformGeometry (Point prevPoint, Transform transform)
+		{
+			Point = transform.TransformPoint (Point);
+		}
+
+		public override string ToString ()
+		{
+			return string.Format ("LineTo ({0})", Point);
+		}
 	}
 	public class ArcTo : PathOp
 	{
@@ -59,12 +104,16 @@ namespace NGraphics
 			SweepClockwise = sweepClockwise;
 			Point = point;
 		}
+		public override PathOp Clone ()
+		{
+			return new ArcTo (Radius, LargeArc, SweepClockwise, Point);
+		}
 		public override Point GetContinueCurveControlPoint ()
 		{
 			return Point;
 		}
 
-		public override Point EndPoint { get { return Point; }}
+		public override Point GetEndPoint (Point startPoint) { return Point; }
 
 		public void GetCircles (Point prevPoint, out Point circle1Center, out Point circle2Center)
 		{
@@ -92,6 +141,21 @@ namespace NGraphics
 			circle1Center = new Point (p3.X - yd * dp.Y / q, p3.Y + xd * dp.X / q);
 			circle2Center = new Point (p3.X + yd * dp.Y / q, p3.Y - xd * dp.X / q);
 		}
+
+		public override EdgeSamples[] GetEdgeSamples (Point startPoint, Point prevPoint, double tolerance, int minSamples, int maxSamples)
+		{
+			throw new NotSupportedException ();
+		}
+
+		public override void TransformGeometry (Point prevPoint, Transform transform)
+		{
+			throw new NotSupportedException ();
+		}
+
+		public override string ToString ()
+		{
+			return string.Format ("ArcTo ({0})", Point);
+		}
 	}
 	public class CurveTo : PathOp
 	{
@@ -104,19 +168,56 @@ namespace NGraphics
 			Control2 = control2;
 			Point = point;
 		}
+		public override PathOp Clone ()
+		{
+			return new CurveTo (Control1, Control2, Point);
+		}
+
 		public override Point GetContinueCurveControlPoint ()
 		{
 			return Control2.ReflectedAround (Point);
 		}
-		public override Point EndPoint { get { return Point; }}
+		public override Point GetEndPoint (Point startPoint) { return Point; }
+		public override EdgeSamples[] GetEdgeSamples (Point startPoint, Point prevPoint, double tolerance, int minSamples, int maxSamples)
+		{
+			throw new NotSupportedException ();
+		}
+		public override void TransformGeometry (Point prevPoint, Transform transform)
+		{
+			throw new NotSupportedException ();
+		}
+
+		public override string ToString ()
+		{
+			return string.Format ("CurveTo ({0})", Point);
+		}
 	}
 	public class ClosePath : PathOp
 	{
+		public override PathOp Clone ()
+		{
+			return new ClosePath ();
+		}
 		public override Point GetContinueCurveControlPoint ()
 		{
 			throw new NotSupportedException ();
 		}
-		public override Point EndPoint { get { throw new NotSupportedException(); }}
+		public override Point GetEndPoint (Point startPoint) { return startPoint; }
+		public override EdgeSamples[] GetEdgeSamples (Point startPoint, Point prevPoint, double tolerance, int minSamples, int maxSamples)
+		{
+			if (prevPoint.DistanceTo (startPoint) < tolerance) {
+				return new EdgeSamples[0];
+			}
+			var ps = Element.SampleLine (prevPoint, startPoint, true, tolerance, minSamples, maxSamples);
+			return new [] { new EdgeSamples { Points = ps } };
+		}
+		public override void TransformGeometry (Point prevPoint, Transform transform)
+		{
+		}
+		public override string ToString ()
+		{
+			return string.Format ("Close ()");
+		}
 	}
 
 	public class Path : Element
@@ -193,7 +294,7 @@ namespace NGraphics
 			Add (new ClosePath ());
 		}
 
-		public bool Contains (Point point)
+		public override bool Contains (Point localPoint)
 		{
 			var verts = new List<Point> ();
 			foreach (var o in Operations) {
@@ -216,8 +317,8 @@ namespace NGraphics
 			int i, j;
 			var c = false;
 			var nverts = verts.Count;
-			var testx = point.X;
-			var testy = point.Y;
+			var testx = localPoint.X;
+			var testy = localPoint.Y;
 			for (i = 0, j = nverts-1; i < nverts; j = i++) {
 				if ( ((verts[i].Y>testy) != (verts[j].Y>testy)) &&
 					(testx < (verts[j].X-verts[i].X) * (testy-verts[i].Y) / (verts[j].Y-verts[i].Y) + verts[i].X) )
@@ -229,6 +330,71 @@ namespace NGraphics
 		public override string ToString ()
 		{
 			return string.Format (CultureInfo.InvariantCulture, "Path ([{0}])", Operations.Count);
+		}
+
+		protected override Element CreateUninitializedClone ()
+		{
+			return new Path ();
+		}
+
+		protected override void SetCloneData (Element clone)
+		{
+			base.SetCloneData (clone);
+			((Path)clone).Operations.AddRange (Operations.Select (x => x.Clone ()));
+		}
+
+		public override Element TransformGeometry (Transform transform)
+		{
+			var clone = (Path)Clone ();
+
+			var tt = transform * Transform;
+
+			clone.Transform = Transform.Identity;
+
+			var startPoint = Point.Zero;
+			var prevPoint = startPoint;
+
+			foreach (var op in clone.Operations) {
+				if (op is MoveTo) {
+					startPoint = transform.TransformPoint (op.EndPoint);
+				}
+				op.TransformGeometry (prevPoint, tt);
+				prevPoint = op.GetEndPoint (startPoint);
+			}
+
+			return clone;
+		}
+
+		public override Rect SampleableBox {
+			get {
+				throw new NotSupportedException ();
+			}
+		}
+
+		public override EdgeSamples[] GetEdgeSamples (double tolerance, int minSamples, int maxSamples)
+		{
+			var edges = new List<EdgeSamples> ();
+
+			var startPoint = Point.Zero;
+			var prevPoint = startPoint;
+
+			foreach (var op in Operations) {
+				if (op is MoveTo) {
+					startPoint = op.EndPoint;
+				}
+				edges.AddRange (op.GetEdgeSamples (startPoint, prevPoint, tolerance, minSamples, maxSamples));
+				prevPoint = op.GetEndPoint (startPoint);
+			}
+
+			for (int i = 0; i < edges.Count; i++) {
+				var e = edges [i];
+				for (int j = 0; j < e.Points.Length; j++) {
+					var p = Transform.TransformPoint (e.Points [j]);
+					e.Points [j] = p;
+				}
+			}
+
+			return edges.ToArray ();
 		}
 	}
 }
