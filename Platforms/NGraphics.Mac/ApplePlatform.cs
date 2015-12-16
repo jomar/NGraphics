@@ -525,6 +525,9 @@ namespace NGraphics
 
 		void SetPen (Pen pen)
 		{
+			if (pen.DashArray != null)
+				context.SetLineDash(0, pen.DashArray.Select(s => (nfloat)s).ToArray()); 
+			context.SetLineCap(GetLineCap(pen.StrokeLineCap));
 			context.SetStrokeColor ((nfloat)pen.Color.Red, (nfloat)pen.Color.Green, (nfloat)pen.Color.Blue, (nfloat)pen.Color.Alpha);
 			context.SetLineWidth ((nfloat)pen.Width);
 		}
@@ -534,6 +537,19 @@ namespace NGraphics
 			var sb = brush as SolidBrush;
 			if (sb != null) {
 				context.SetFillColor ((nfloat)sb.Color.Red, (nfloat)sb.Color.Green, (nfloat)sb.Color.Blue, (nfloat)sb.Color.Alpha);
+			}
+		}
+
+		CGLineCap GetLineCap(Pen.LineCap cap)
+		{
+			switch(cap)
+			{
+				case Pen.LineCap.Round:
+				return CGLineCap.Round;
+				case Pen.LineCap.Square:
+				return CGLineCap.Square;
+				default:
+				return CGLineCap.Butt;
 			}
 		}
 	}

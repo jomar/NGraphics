@@ -18,20 +18,32 @@ namespace NGraphics
 
 	public class Pen
 	{
+		public enum LineCap
+		{
+			Butt,
+			Round,
+			Square
+		};
+
 		public Color Color;
 		public double Width;
+		public double[] DashArray;
+		public LineCap StrokeLineCap;
 
 		public Pen ()
 		{
 			Color = Colors.Black;
 			Width = 1;
+			StrokeLineCap = LineCap.Butt;
 		}
 
 		public Pen (Color color, double width = 1.0)
 		{
 			Color = color;
 			Width = width;
+			StrokeLineCap = LineCap.Butt;
 		}
+
 		public Pen (string colorString, double width = 1.0)
 			: this (new Color (colorString), width)
 		{
