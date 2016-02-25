@@ -432,6 +432,18 @@ namespace NGraphics
 					pen.StrokeLineCap = Pen.LineCap.Round;
 			}
 
+			if (key.Equals("stroke-linejoin", StringComparison.OrdinalIgnoreCase))
+			{
+				if (pen == null)
+					pen = new Pen();
+				if (string.Equals(value, "miter"))
+					pen.StrokeLineJoin = Pen.LineJoin.Miter;
+				else if (string.Equals(value, "round"))
+					pen.StrokeLineJoin = Pen.LineJoin.Round;
+				else if (string.Equals(value, "bevel"))
+					pen.StrokeLineJoin = Pen.LineJoin.Bevel;
+			}
+
 			//
 			// Pen
 			//

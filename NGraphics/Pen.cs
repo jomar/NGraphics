@@ -18,6 +18,13 @@ namespace NGraphics
 
 	public class Pen
 	{
+		public enum LineJoin
+		{
+			Miter,
+			Round,
+			Bevel
+		}
+
 		public enum LineCap
 		{
 			Butt,
@@ -28,6 +35,7 @@ namespace NGraphics
 		public Color Color;
 		public double Width;
 		public LineCap StrokeLineCap;
+		public LineJoin StrokeLineJoin;
         public IEnumerable<float> DashPattern; 
 
 		public Pen ()

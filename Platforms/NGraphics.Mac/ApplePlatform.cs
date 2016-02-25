@@ -317,7 +317,6 @@ namespace NGraphics
 					if (alignment == TextAlignment.Left)
 						context.TranslateCTM ((nfloat)(pt.X), (nfloat)(pt.Y));
 					else {
-						nfloat asc, desc, lead;
 						var width = l.GetTypographicBounds (out asc, out desc, out lead);
 
 						if (alignment == TextAlignment.Right)
@@ -543,9 +542,10 @@ namespace NGraphics
 
 		void SetPen (Pen pen)
 		{
-			if (pen.DashArray != null)
-				context.SetLineDash(0, pen.DashArray.Select(s => (nfloat)s).ToArray()); 
+			if (pen.DashPattern != null)
+				context.SetLineDash(0, pen.DashPattern.Select(s => (nfloat)s).ToArray()); 
 			context.SetLineCap(GetLineCap(pen.StrokeLineCap));
+			context.SetLineJoin(GetLineJoin(pen.StrokeLineJoin));
 			context.SetStrokeColor ((nfloat)pen.Color.Red, (nfloat)pen.Color.Green, (nfloat)pen.Color.Blue, (nfloat)pen.Color.Alpha);
 			context.SetLineWidth ((nfloat)pen.Width);
 
@@ -579,6 +579,19 @@ namespace NGraphics
 				return CGLineCap.Square;
 				default:
 				return CGLineCap.Butt;
+			}
+		}
+
+		CGLineJoin GetLineJoin(Pen.LineJoin join)
+		{
+			switch(join)
+			{
+				case Pen.LineJoin.Round:
+				return CGLineJoin.Round;
+				case Pen.LineJoin.Bevel:
+				return CGLineJoin.Bevel;
+				default:
+				return CGLineJoin.Miter;
 			}
 		}
 	}
