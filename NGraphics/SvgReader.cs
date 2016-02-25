@@ -75,6 +75,25 @@ namespace NGraphics
 				AddElement (list, e, inheritPen, inheritBrush);
 		}
 
+		protected List<XAttribute> FlattenStyleAttributes(IEnumerable<XAttribute> attributes)
+		{
+			List<XAttribute> retval = null;
+			if (attributes != null)
+			{
+				retval = new List<XAttribute>();
+				foreach(var attribute in attributes)
+				{
+					if (attribute.Name.LocalName.Equals("style", StringComparison.OrdinalIgnoreCase))
+					{
+						retval.AddRange(FlattenStyleAttributes(GetStyleAttributes(attribute.Value)));
+					}
+					else
+						retval.Add(attribute);
+				}
+			}
+			return retval;
+		}
+
 		void AddElement (IList<Element> list, XElement e, Pen inheritPen, Brush inheritBrush)
 		{
 			//
@@ -84,11 +103,10 @@ namespace NGraphics
 			Pen pen = null;
 			Brush brush = null;
 			bool hasPen, hasBrush;
-			ApplyStyle (e.Attributes ().ToDictionary (k => k.Name.LocalName, v => v.Value), ref pen, out hasPen, ref brush, out hasBrush);
-			var style = ReadString (e.Attribute ("style"));
-			if (!string.IsNullOrWhiteSpace (style)) {
-				ApplyStyle (style, ref pen, out hasPen, ref brush, out hasBrush);
-			}
+
+			var styles = FlattenStyleAttributes(e.Attributes ());
+			ApplyStyle (styles, ref pen, out hasPen, ref brush, out hasBrush);
+
 			pen = hasPen ? pen : inheritPen;
 			brush = hasBrush ? brush : inheritBrush;
 			//var id = ReadString (e.Attribute ("id"));
@@ -109,6 +127,7 @@ namespace NGraphics
 					if (fontSize >= 0)
 						font.Size = fontSize;
 					TextAlignment textAlignment = ReadTextAlignment(e, TextAlignment.Left);
+
 					var nodes = e.Nodes();
 					if (nodes != null && nodes.Count() > 0)
 					{
@@ -324,9 +343,31 @@ namespace NGraphics
 			ApplyStyle (d, ref pen, out hasPen, ref brush, out hasBrush);
 		}
 
+		IEnumerable<XAttribute> GetStyleAttributes(string style)
+		{
+			var d = new List<XAttribute> ();
+			if (style == null)
+				return d;
+
+			var kvs = style.Split (new[]{ ';' }, StringSplitOptions.RemoveEmptyEntries);
+			foreach (var kv in kvs) {
+				var m = keyValueRe.Match (kv);
+				if (m.Success) {
+					// dash is illegal first character for XAttribute name
+					var k = m.Groups [1].Value.TrimStart(new [] { '-' });;
+					var v = m.Groups [2].Value;
+					d.Add(new XAttribute(XName.Get(k), v));
+				}
+			}
+			return d;
+		}
+
 		Dictionary<string, string> ParseStyle(string style)
 		{
 			var d = new Dictionary<string, string> ();
+			if (style == null)
+				return d;
+
 			var kvs = style.Split (new[]{ ';' }, StringSplitOptions.RemoveEmptyEntries);
 			foreach (var kv in kvs) {
 				var m = keyValueRe.Match (kv);
@@ -349,93 +390,163 @@ namespace NGraphics
 
 		Regex fillUrlRe = new Regex (@"url\s*\(\s*#([^\)]+)\)");
 
-		void ApplyStyle (Dictionary<string, string> style, ref Pen pen, out bool hasPen, ref Brush brush, out bool hasBrush)
+		void ApplyStyle (IEnumerable<XAttribute> styles, ref Pen pen, out bool hasPen, ref Brush brush, out bool hasBrush)
+		{
+			bool localHasPen = false;
+			hasPen = false;
+			bool localHasBrush = false;
+			hasBrush = false;
+			foreach(var style in styles)
+			{
+				ApplyStyle(style.Name.LocalName, style.Value, ref pen, out localHasPen, ref brush, out localHasBrush);
+				hasPen |= localHasPen;
+				hasBrush |= localHasBrush;
+			}
+		}
+
+		void ApplyStyle (Dictionary<string, string> styles, ref Pen pen, out bool hasPen, ref Brush brush, out bool hasBrush)
+		{
+			bool localHasPen = false;
+			hasPen = false;
+			bool localHasBrush = false;
+			hasBrush = false;
+			foreach(var k in styles.Keys)
+			{
+				ApplyStyle(k, styles[k], ref pen, out hasPen, ref brush, out hasBrush);
+				hasPen |= localHasPen;
+				hasBrush |= localHasBrush;
+			}
+		}
+
+		void ApplyStyle (string key, string value, ref Pen pen, out bool hasPen, ref Brush brush, out bool hasBrush)
 		{
 			//
 			// Pen attributes
 			//
-			var strokeWidth = GetString (style, "stroke-width");
-			if (!string.IsNullOrWhiteSpace (strokeWidth)) {
-				if (pen == null)
-					pen = new Pen ();
-				pen.Width = ReadNumber (strokeWidth);
+			if (key.Equals("stroke-width", StringComparison.OrdinalIgnoreCase))
+			{
+				var strokeWidth = value;
+				if (!string.IsNullOrWhiteSpace (strokeWidth)) {
+					if (pen == null)
+						pen = new Pen ();
+					pen.Width = ReadNumber (strokeWidth);
+				}
 			}
 
-			var strokeOpacity = GetString (style, "stroke-opacity");
-			if (!string.IsNullOrWhiteSpace (strokeOpacity)) {
+			if (key.Equals("stroke-dasharray", StringComparison.OrdinalIgnoreCase))
+			{
+				var values = value.Split(new [] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+				var dashes = new List<double>();
+				foreach(var v in values)
+					dashes.Add(ReadNumber(v));
 				if (pen == null)
-					pen = new Pen ();
-				pen.Color = pen.Color.WithAlpha (ReadNumber (strokeOpacity));
+					pen = new Pen();
+				pen.DashArray = dashes.ToArray();
+			}
+
+			if (key.Equals("stroke-opacity", StringComparison.OrdinalIgnoreCase))
+			{
+				var strokeOpacity = value;
+				if (!string.IsNullOrWhiteSpace (strokeOpacity)) {
+					if (pen == null)
+						pen = new Pen ();
+					pen.Color = pen.Color.WithAlpha (ReadNumber (strokeOpacity));
+				}
+			}
+
+			if (key.Equals("stroke-linecap", StringComparison.OrdinalIgnoreCase))
+			{
+				if (pen == null)
+					pen = new Pen();
+				if (string.Equals(value, "butt"))
+					pen.StrokeLineCap = Pen.LineCap.Butt;
+				else if (string.Equals(value, "square"))
+					pen.StrokeLineCap = Pen.LineCap.Square;
+				else if (string.Equals(value, "round"))
+					pen.StrokeLineCap = Pen.LineCap.Round;
 			}
 
 			//
 			// Pen
 			//
-			var stroke = GetString (style, "stroke").Trim ();
-			if (string.IsNullOrEmpty (stroke)) {
-				// No change
-				hasPen = false;
-			} else if (stroke.Equals("none", StringComparison.OrdinalIgnoreCase)) {
-				hasPen = true;
-				pen = null;
-			} else {
-				hasPen = true;
-				if (pen == null)
-					pen = new Pen ();
-				Color color;
-				if (Colors.TryParse (stroke, out color)) {
-					if (pen.Color.Alpha == 1)
-						pen.Color = color;
-					else
-						pen.Color = color.WithAlpha (pen.Color.Alpha);
+			if (key.Equals("stroke", StringComparison.OrdinalIgnoreCase))
+			{
+				var stroke = value.Trim ();
+				if (string.IsNullOrEmpty (stroke)) {
+					// No change
+					hasPen = false;
+				} else if (stroke.Equals("none", StringComparison.OrdinalIgnoreCase)) {
+					hasPen = true;
+					pen = null;
+				} else {
+					hasPen = true;
+					if (pen == null)
+						pen = new Pen ();
+					Color color;
+					if (Colors.TryParse (stroke, out color)) {
+						if (pen.Color.Alpha == 1)
+							pen.Color = color;
+						else
+							pen.Color = color.WithAlpha (pen.Color.Alpha);
+					}
 				}
 			}
+			else
+				hasPen = false;
 
 			//
 			// Brush attributes
 			//
-			var fillOpacity = GetString (style, "fill-opacity");
-			if (!string.IsNullOrWhiteSpace (fillOpacity)) {
-				if (brush == null)
-					brush = new SolidBrush ();
-				var sb = brush as SolidBrush;
-				if (sb != null)
-					sb.Color = sb.Color.WithAlpha (ReadNumber (fillOpacity));
+			if (key.Equals("fill-opacity", StringComparison.OrdinalIgnoreCase))
+			{
+				var fillOpacity = value;
+				if (!string.IsNullOrWhiteSpace (fillOpacity)) {
+					if (brush == null)
+						brush = new SolidBrush ();
+					var sb = brush as SolidBrush;
+					if (sb != null)
+						sb.Color = sb.Color.WithAlpha (ReadNumber (fillOpacity));
+				}
 			}
 
 			//
 			// Brush
 			//
-			var fill = GetString (style, "fill").Trim ();
-			if (string.IsNullOrEmpty (fill)) {
-				// No change
-				hasBrush = false;
-			} else if (fill.Equals("none", StringComparison.OrdinalIgnoreCase)) {
-				hasBrush = true;
-				brush = null;
-			} else {
-				hasBrush = true;
-				Color color;
-				if (Colors.TryParse (fill, out color)) {
-					var sb = brush as SolidBrush;
-					if (sb == null) {
-						brush = new SolidBrush (color);
-					} else {
-						if (sb.Color.Alpha == 1)
-							sb.Color = color;
-						else
-							sb.Color = color.WithAlpha (sb.Color.Alpha);
-					}
+			if (key.Equals("fill", StringComparison.OrdinalIgnoreCase))
+			{
+				var fill = value.Trim ();
+				if (string.IsNullOrEmpty (fill)) {
+					// No change
+					hasBrush = false;
+				} else if (fill.Equals("none", StringComparison.OrdinalIgnoreCase)) {
+					hasBrush = true;
+					brush = null;
 				} else {
-					var urlM = fillUrlRe.Match (fill);
-					if (urlM.Success) {
-						var id = urlM.Groups [1].Value.Trim ();
-						brush = GetGradientBrush(id, null);
+					hasBrush = true;
+					Color color;
+					if (Colors.TryParse (fill, out color)) {
+						var sb = brush as SolidBrush;
+						if (sb == null) {
+							brush = new SolidBrush (color);
+						} else {
+							if (sb.Color.Alpha == 1)
+								sb.Color = color;
+							else
+								sb.Color = color.WithAlpha (sb.Color.Alpha);
+						}
 					} else {
-						throw new NotSupportedException ("Fill " + fill);
+						var urlM = fillUrlRe.Match (fill);
+						if (urlM.Success) {
+							var id = urlM.Groups [1].Value.Trim ();
+							brush = GetGradientBrush(id, null);
+						} else {
+							throw new NotSupportedException ("Fill " + fill);
+						}
 					}
 				}
 			}
+			else
+				hasBrush = false;
 		}
 
 		protected GradientBrush GetGradientBrush(string fill, GradientBrush child)
@@ -573,8 +684,21 @@ namespace NGraphics
 					int index = 0;
 					while(index < args.Length)
 					{
-						if (p.Operations.Count > 0 && !(p.Operations.Last() is ClosePath))
-							previousPoint = p.Operations.Last().EndPoint;
+						if (p.Operations.Count > 0) {
+							if (!(p.Operations.Last() is ClosePath))
+								previousPoint = p.Operations.Last().EndPoint;
+							else {
+								// find start point of last path chain
+								foreach(var pathop in p.Operations.Reverse<PathOp>()) 
+								{
+									if (!(pathop is ClosePath))
+									{
+										previousPoint = pathop.EndPoint;
+										break;
+									}
+								}
+							}
+						}
 
 						if ((op == 'M' || op == 'm') && args.Length >= index+2) {
 							var point = new Point (ReadNumber (args [index]), ReadNumber (args [index+1]));
@@ -904,15 +1028,25 @@ namespace NGraphics
 
 		double ReadNumber (XAttribute a)
 		{
+			return ReadNumber(a, 1.0);
+		}
+
+		double ReadNumber (XAttribute a, double parentSize)
+		{
 			if (a == null)
 				return 0;
-			return ReadNumber (a.Value);
+			return ReadNumber (a.Value, parentSize);
 		}
 
 		Regex unitRe = new Regex("px|pt|em|ex|pc|cm|mm|in");
 		Regex percRe = new Regex("%");
 
 		double ReadNumber (string raw)
+		{
+			return ReadNumber(raw, 1.0);
+		}
+
+		double ReadNumber (string raw, double parentSize)
 		{
 			if (string.IsNullOrWhiteSpace (raw))
 				return 0;
@@ -935,7 +1069,7 @@ namespace NGraphics
 				s = s.Substring (0, s.Length - 2);
 			} else if (percRe.IsMatch(s)) {
 				s = s.Substring (0, s.Length - 1);
-				m = 0.01;
+				m = parentSize * 0.01;
 			}
 
 			double v;
