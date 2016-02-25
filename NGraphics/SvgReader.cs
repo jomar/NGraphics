@@ -474,6 +474,22 @@ namespace NGraphics
 				}
 			}
 
+			if (key.Equals("opacity", StringComparison.OrdinalIgnoreCase))
+			{
+				var opacity = value;
+				if (!string.IsNullOrWhiteSpace (opacity)) {
+					if (brush == null)
+						brush = new SolidBrush ();
+					var sb = brush as SolidBrush;
+					if (sb != null)
+						sb.Color = sb.Color.WithAlpha (ReadNumber (opacity));
+
+					if (pen == null)
+						pen = new Pen();
+					pen.Color = pen.Color.WithAlpha(ReadNumber(opacity));
+				}
+			}
+
 			//
 			// Brush
 			//
