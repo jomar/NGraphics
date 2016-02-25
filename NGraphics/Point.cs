@@ -36,6 +36,17 @@ namespace NGraphics
 			return point - d;
 		}
 
+		[System.Runtime.Serialization.IgnoreDataMember]
+		public Point Normalized {
+			get {
+				var d = Distance;
+				if (d == 0) {
+					return new Point (1, 0);
+				}
+				return this / d;
+			}
+		}
+
 		public double DistanceTo (Point p)
 		{
 			return Math.Sqrt ((X - p.X) * (X - p.X) + (Y - p.Y) * (Y - p.Y));
@@ -74,6 +85,13 @@ namespace NGraphics
 		public double Dot (Point b)
 		{
 			return X * b.X + Y * b.Y;
+		}
+
+		public Point MoveInto (Rect rect)
+		{
+			var x = Math.Min (Math.Max (X, rect.Left), rect.Right);
+			var y = Math.Min (Math.Max (Y, rect.Top), rect.Bottom);
+			return new Point (x, y);
 		}
 
 		public override bool Equals (object obj)

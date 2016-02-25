@@ -23,6 +23,11 @@ namespace NGraphics
 			} 
 		}
 
+		public Task<Stream> OpenFileStreamForWritingAsync (string path)
+		{
+			return Task.FromResult ((Stream)new FileStream (path, FileMode.Create, FileAccess.Write, FileShare.Read));
+		}
+
 		public IImageCanvas CreateImageCanvas (Size size, double scale = 1.0, bool transparency = true)
 		{
 			var pixelWidth = (int)Math.Ceiling (size.Width * scale);
@@ -88,6 +93,40 @@ namespace NGraphics
 				image = CGImage.FromJPEG (provider, null, false, CGColorRenderingIntent.Default);
 			}
 			return new CGImageImage (image, 1);
+		}
+
+		public static TextMetrics GlobalMeasureText (string text, Font font)
+		{
+			if (string.IsNullOrEmpty(text))
+				return new TextMetrics ();
+			if (font == null)
+				throw new ArgumentNullException("font");
+
+			using (var atext = new NSMutableAttributedString (text)) {
+
+				atext.AddAttributes (new CTStringAttributes {
+					ForegroundColorFromContext = true,
+					Font = font.GetCTFont (),
+				}, new NSRange (0, text.Length));
+
+				using (var l = new CTLine (atext)) {
+					nfloat asc, desc, lead;
+
+					var len = l.GetTypographicBounds (out asc, out desc, out lead);
+
+					return new TextMetrics {
+						Width = len,
+						Ascent = asc,
+						Descent = desc,
+					};
+				}
+			}
+
+		}
+
+		public TextMetrics MeasureText (string text, Font font)
+		{
+			return GlobalMeasureText (text, font);
 		}
 	}
 
@@ -235,45 +274,9 @@ namespace NGraphics
 
 		private static NSString NSFontAttributeName = new NSString("NSFontAttributeName");
 
-		public Size MeasureText(string text, Font font)
+		public TextMetrics MeasureText(string text, Font font)
 		{
-			if (string.IsNullOrEmpty(text))
-				return Size.Zero;
-			if (font == null)
-				throw new ArgumentNullException("font");
-
-			string fontName = font.Name;
-			Array availableFonts =
-				#if __IOS__ || __TVOS__
-				UIKit.UIFont.FontNamesForFamilyName(fontName);
-				#else
-				AppKit.NSFontManager.SharedFontManager.AvailableMembersOfFontFamily (fontName).ToArray ();
-				#endif
-
-			#if __IOS__ || __TVOS__
-			UIKit.UIFont nsFont;
-			if (availableFonts != null && availableFonts.Length > 0)
-				nsFont = UIKit.UIFont.FromName(font.Name, (nfloat)font.Size);
-			else
-				nsFont = UIKit.UIFont.FromName("Georgia", (nfloat)font.Size);
-			#else
-			AppKit.NSFont nsFont;
-			if (availableFonts != null && availableFonts.Length > 0)
-				nsFont = AppKit.NSFont.FromFontName(font.Name, (nfloat)font.Size);
-			else
-				nsFont = AppKit.NSFont.FromFontName("Georgia", (nfloat)font.Size);
-			#endif
-
-			using (var s = new NSAttributedString(text, font: nsFont))
-			using (nsFont)
-			{
-				#if __IOS__ || __TVOS__
-				var result = s.GetBoundingRect(new CGSize(float.MaxValue, float.MaxValue), NSStringDrawingOptions.UsesDeviceMetrics, null);
-				#else
-				var result = s.BoundingRectWithSize(new CGSize(float.MaxValue, float.MaxValue), NSStringDrawingOptions.UsesDeviceMetrics);
-				#endif
-				return new Size(result.Width, result.Height);
-			}
+			return ApplePlatform.GlobalMeasureText (text, font);
 		}
 
 		public void DrawText (string text, Rect frame, Font font, TextAlignment alignment = TextAlignment.Left, Pen pen = null, Brush brush = null)
@@ -285,16 +288,31 @@ namespace NGraphics
 
 			SetBrush (brush);
 
-			var pt = frame.TopLeft;
-
 			using (var atext = new NSMutableAttributedString (text)) {
 
 				atext.AddAttributes (new CTStringAttributes {
 					ForegroundColorFromContext = true,
+					StrokeColor = pen != null ? pen.Color.GetCGColor () : null, 
 					Font = font.GetCTFont (),
 				}, new NSRange (0, text.Length));
 
 				using (var l = new CTLine (atext)) {
+					nfloat asc, desc, lead;
+					var len = l.GetTypographicBounds (out asc, out desc, out lead);
+					var pt = frame.TopLeft;
+
+					switch (alignment) {
+					case TextAlignment.Left:
+						pt.X = frame.X;
+						break;
+					case TextAlignment.Center:
+						pt.X = frame.X + (frame.Width - len) / 2;
+						break;
+					case TextAlignment.Right:
+						pt.X = frame.Right - len;
+						break;
+					}
+
 					context.SaveState ();
 					if (alignment == TextAlignment.Left)
 						context.TranslateCTM ((nfloat)(pt.X), (nfloat)(pt.Y));
@@ -530,7 +548,18 @@ namespace NGraphics
 			context.SetLineCap(GetLineCap(pen.StrokeLineCap));
 			context.SetStrokeColor ((nfloat)pen.Color.Red, (nfloat)pen.Color.Green, (nfloat)pen.Color.Blue, (nfloat)pen.Color.Alpha);
 			context.SetLineWidth ((nfloat)pen.Width);
-		}
+
+		    if (pen.DashPattern != null && pen.DashPattern.Any ()) {
+		        var pattern = pen.DashPattern
+                    .Select (dp => (nfloat)dp)
+                    .ToArray ();
+
+		        context.SetLineDash (0, pattern, pattern.Length);
+		    }
+            else {
+                context.SetLineDash(0, null, 0);
+            }
+        }
 
 		void SetBrush (Brush brush)
 		{
@@ -588,7 +617,26 @@ namespace NGraphics
 		{
 			return new CTFont (font.Name, (nfloat)font.Size);
 		}
+		public static CGColor GetCGColor (this Color color)
+		{
+			return new CGColor ((nfloat)color.Red, (nfloat)color.Green, (nfloat)color.Blue, (nfloat)color.Alpha);
+		}
+		public static Color GetColor (this CGColor color)
+		{
+			var c = color.Components;
+			return Color.FromRGB (c[0], c[1], c[2], c[3]);
+		}
 		#if __IOS__ || __TVOS__
+		public static UIKit.UIColor GetUIColor (this Color color)
+		{
+			return UIKit.UIColor.FromRGBA (color.R, color.G, color.B, color.A);
+		}
+		public static Color GetColor (this UIKit.UIColor color)
+		{
+			nfloat r, g, b, a;
+			color.GetRGBA (out r, out g, out b, out a);
+			return Color.FromRGB (r, g, b, a);
+		}
 		public static UIKit.UIImage GetUIImage (this IImage image)
 		{
 			var c = (CGImageImage)image;

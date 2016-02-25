@@ -27,8 +27,8 @@ namespace NGraphics
 
 		public Color Color;
 		public double Width;
-		public double[] DashArray;
 		public LineCap StrokeLineCap;
+        public IEnumerable<float> DashPattern; 
 
 		public Pen ()
 		{

@@ -12,26 +12,66 @@ namespace NGraphics
 		public byte R;
         public byte A;
 
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public double Red { get { return R / 255.0; } set { R = Round (value); } }
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public double Green { get { return G / 255.0; } set { G = Round (value); } }
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public double Blue { get { return B / 255.0; } set { B = Round (value); } }
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public double Alpha { get { return A / 255.0; } set { A = Round (value); } }
+		[System.Runtime.Serialization.IgnoreDataMember]
+		public double Hue {
+			get { return ToHSB ()[0]; }
+			set {
+				var hsb = ToHSB ();
+				var c = Color.FromHSB (value, hsb [1], hsb [2], 1);
+				R = c.R; G = c.G; B = c.B;
+			}
+		}
+		[System.Runtime.Serialization.IgnoreDataMember]
+		public double Saturation {
+			get { return ToHSB ()[1]; }
+			set {
+				var hsb = ToHSB ();
+				var c = Color.FromHSB (value, hsb [1], hsb [2], 1);
+				R = c.R; G = c.G; B = c.B;
+			}
+		}
+		[System.Runtime.Serialization.IgnoreDataMember]
+		public double Brightness {
+			get { return Value; }
+			set {
+				Value = value;
+			}
+		}
+		[System.Runtime.Serialization.IgnoreDataMember]
+		public double Value {
+			get { return ToHSV ()[2]; }
+			set {
+				var c = WithValue (value);
+				R = c.R; G = c.G; B = c.B;
+			}
+		}
 
 		static byte Round (double c)
 		{
 			return (byte)(Math.Min (255, Math.Max (0, (int)(c * 255 + 0.5))));
 		}
 
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public int Argb {
 			get {
 				return (A << 24) | (R << 16) | (G << 8) | B;
 			}
 		}
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public int Rgba {
 			get {
 				return (R << 24) | (G << 16) | (B << 8) | A;
 			}
 		}
+		[System.Runtime.Serialization.IgnoreDataMember]
 		public int Abgr {
 			get {
 				return (A << 24) | (B << 16) | (G << 8) | R;
@@ -121,6 +161,29 @@ namespace NGraphics
 			return new Color (R, G, B, a);
 		}
 
+		public Color WithHue (double hue)
+		{
+			var hsb = ToHSB ();
+			return Color.FromHSB (hue, hsb [1], hsb [2], hsb[3]);
+		}
+
+		public Color WithSaturation (double saturation)
+		{
+			var hsb = ToHSB ();
+			return Color.FromHSB (hsb[0], saturation, hsb [2], hsb[3]);
+		}
+
+		public Color WithBrightness (double brightness)
+		{
+			return WithValue (brightness);
+		}
+
+		public Color WithValue (double value)
+		{
+			var hsb = ToHSB ();
+			return Color.FromHSV (hsb[0], hsb [1], value, hsb[3]);
+		}
+
 		public static Color FromRGB (double red, double green, double blue, double alpha = 1)
 		{
 			return new Color (red, green, blue, alpha);
@@ -190,6 +253,55 @@ namespace NGraphics
 			return FromHSV (hue, saturation, brightness, alpha);
 		}
 
+		public double[] ToHSB ()
+		{
+			return ToHSV ();
+		}
+
+		public double[] ToHSV ()
+		{			
+			var r = new double[4];
+
+			int cmax = (R > G) ? R : G;
+			if (B > cmax)
+				cmax = B;
+			int cmin = (R < G) ? R : G;
+			if (B < cmin)
+				cmin = B;
+
+			var brightness = cmax / 255.0;
+			double hue, saturation;
+			if (cmax != 0) {
+				saturation = (cmax - cmin) / (double)cmax;
+			}
+			else {
+				saturation = 0;
+			}
+			if (saturation == 0) {
+				hue = 0;
+			}
+			else {
+				var redc = (cmax - R) / (double)(cmax - cmin);
+				var greenc = (cmax - G) / (double)(cmax - cmin);
+				var bluec = (cmax - B) / (double)(cmax - cmin);
+				if (R == cmax)
+					hue = bluec - greenc;
+				else if (G == cmax)
+					hue = 2 + redc - bluec;
+				else
+					hue = 4 + greenc - redc;
+				hue = hue / 6;
+				if (hue < 0) {
+					hue = hue + 1;
+				}
+			}
+			r [0] = hue;
+			r [1] = saturation;
+			r [2] = brightness;
+			r [3] = Alpha;
+			return r;
+		}
+
 		public static Color FromHSV (double hue, double saturation, double value, double alpha = 1.0)
 		{
 			var c = saturation * value;
@@ -233,6 +345,13 @@ namespace NGraphics
 			}
 			var m = value - c;
 			return new Color (r1 + m, g1 + m, b1 + m, alpha);
+		}
+
+		public string HtmlString
+		{
+			get {
+				return string.Format ("#{0:X2}{1:X2}{2:X2}", R, G, B);
+			}
 		}
 
 		public override string ToString ()

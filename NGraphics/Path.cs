@@ -13,6 +13,11 @@ namespace NGraphics
 		public abstract EdgeSamples[] GetEdgeSamples (Point startPoint, Point prevPoint, double tolerance, int minSamples, int maxSamples);
 		public abstract PathOp Clone ();
 		public abstract void TransformGeometry (Point prevPoint, Transform transform);
+		public abstract double DistanceTo (Point startPoint, Point prevPoint, Point point);
+		protected abstract void AcceptVisitor (IPathOpVisitor visitor);
+		public void Accept (IPathOpVisitor visitor) {
+			AcceptVisitor (visitor);
+		}
 	}
 	public class MoveTo : PathOp
 	{
@@ -20,6 +25,10 @@ namespace NGraphics
 		public MoveTo (Point point)
 		{
 			Point = point;
+		}
+		protected override void AcceptVisitor (IPathOpVisitor visitor)
+		{
+			visitor.Visit (this);
 		}
 		public MoveTo (double x, double y)
 			: this (new Point (x, y))
@@ -48,6 +57,11 @@ namespace NGraphics
 			Point = transform.TransformPoint (Point);
 		}
 
+		public override double DistanceTo (Point startPoint, Point prevPoint, Point point)
+		{
+			return point.DistanceTo (Point);
+		}
+
 		public override string ToString ()
 		{
 			return string.Format ("MoveTo ({0})", Point);
@@ -63,6 +77,10 @@ namespace NGraphics
 		public LineTo (double x, double y)
 			: this (new Point (x, y))
 		{
+		}
+		protected override void AcceptVisitor (IPathOpVisitor visitor)
+		{
+			visitor.Visit (this);
 		}
 		public override PathOp Clone ()
 		{
@@ -86,6 +104,11 @@ namespace NGraphics
 			Point = transform.TransformPoint (Point);
 		}
 
+		public override double DistanceTo (Point startPoint, Point prevPoint, Point point)
+		{
+			return point.DistanceToLineSegment (prevPoint, Point);
+		}
+
 		public override string ToString ()
 		{
 			return string.Format ("LineTo ({0})", Point);
@@ -103,6 +126,10 @@ namespace NGraphics
 			LargeArc = largeArc;
 			SweepClockwise = sweepClockwise;
 			Point = point;
+		}
+		protected override void AcceptVisitor (IPathOpVisitor visitor)
+		{
+			visitor.Visit (this);
 		}
 		public override PathOp Clone ()
 		{
@@ -152,6 +179,11 @@ namespace NGraphics
 			throw new NotSupportedException ();
 		}
 
+		public override double DistanceTo (Point startPoint, Point prevPoint, Point point)
+		{
+			throw new NotSupportedException ();
+		}
+
 		public override string ToString ()
 		{
 			return string.Format ("ArcTo ({0})", Point);
@@ -168,6 +200,10 @@ namespace NGraphics
 			Control2 = control2;
 			Point = point;
 		}
+		protected override void AcceptVisitor (IPathOpVisitor visitor)
+		{
+			visitor.Visit (this);
+		}
 		public override PathOp Clone ()
 		{
 			return new CurveTo (Control1, Control2, Point);
@@ -180,11 +216,45 @@ namespace NGraphics
 		public override Point GetEndPoint (Point startPoint) { return Point; }
 		public override EdgeSamples[] GetEdgeSamples (Point startPoint, Point prevPoint, double tolerance, int minSamples, int maxSamples)
 		{
-			throw new NotSupportedException ();
+			var n = (3*prevPoint.DistanceTo (Point)) / tolerance;
+			if (n < minSamples)
+				n = minSamples;
+			if (n > maxSamples)
+				n = maxSamples;
+
+			var r = new List<Point> ();
+
+			var dt = 1.0 / (n - 1);
+
+			for (var i = 0; i < n; i++) {
+				var t = i * dt;
+				var p = GetPoint (prevPoint, t);
+				r.Add (p);
+			}
+
+			return new[]{ new EdgeSamples { Points = r.ToArray () } };
 		}
 		public override void TransformGeometry (Point prevPoint, Transform transform)
 		{
-			throw new NotSupportedException ();
+			Point = transform.TransformPoint (Point);
+			Control1 = transform.TransformPoint (Control1);
+			Control2 = transform.TransformPoint (Control2);
+		}
+
+		public Point GetPoint (Point prevPoint, double t)
+		{
+			var u = 1 - t;
+			return
+				u * u * u * prevPoint +
+				3 * u * u * t * Control1 +
+				3 * u * t * t * Control2 +
+				t * t * t * Point;
+		}
+
+		public override double DistanceTo (Point startPoint, Point prevPoint, Point point)
+		{
+			var edges = GetEdgeSamples (startPoint, prevPoint, 1, 16, 16);
+			return edges [0].DistanceTo (point);
 		}
 
 		public override string ToString ()
@@ -194,6 +264,10 @@ namespace NGraphics
 	}
 	public class ClosePath : PathOp
 	{
+		protected override void AcceptVisitor (IPathOpVisitor visitor)
+		{
+			visitor.Visit (this);
+		}
 		public override PathOp Clone ()
 		{
 			return new ClosePath ();
@@ -214,10 +288,23 @@ namespace NGraphics
 		public override void TransformGeometry (Point prevPoint, Transform transform)
 		{
 		}
+		public override double DistanceTo (Point startPoint, Point prevPoint, Point point)
+		{
+			return point.DistanceToLineSegment (prevPoint, startPoint);
+		}
 		public override string ToString ()
 		{
 			return string.Format ("Close ()");
 		}
+	}
+
+	public interface IPathOpVisitor
+	{
+		void Visit (MoveTo moveTo);
+		void Visit (LineTo lineTo);
+		void Visit (CurveTo curveTo);
+		void Visit (ArcTo arcTo);
+		void Visit (ClosePath closePath);
 	}
 
 	public class Path : Element
@@ -232,6 +319,19 @@ namespace NGraphics
 		public Path (Pen pen = null, Brush brush = null)
 			: base (pen, brush)
 		{
+		}
+
+		protected override void AcceptVisitor (IElementVisitor visitor)
+		{
+			visitor.Visit (this);
+			visitor.EndVisit (this);
+		}
+
+		public void AcceptPathOpVisitor (IPathOpVisitor visitor)
+		{
+			foreach (var op in Operations) {
+				op.Accept (visitor);
+			}
 		}
 
 		protected override void DrawElement (ICanvas canvas)
@@ -327,6 +427,33 @@ namespace NGraphics
 			return c;
 		}
 
+		public double DistanceToLocal (Point localPoint)
+		{
+			var startPoint = Point.Zero;
+			var prevPoint = startPoint;
+
+			var minD = double.MaxValue;
+
+			foreach (var op in Operations) {
+				if (op is MoveTo) {
+					startPoint = op.EndPoint;
+				}
+
+				var d = op.DistanceTo (startPoint, prevPoint, localPoint);
+
+				minD = Math.Min (d, minD);
+
+				prevPoint = op.GetEndPoint (startPoint);
+			}
+
+			return minD;
+		}
+
+		public double DistanceTo (Point worldPoint)
+		{
+			return DistanceToLocal (Transform.GetInverse ().TransformPoint (worldPoint));
+		}
+
 		public override string ToString ()
 		{
 			return string.Format (CultureInfo.InvariantCulture, "Path ([{0}])", Operations.Count);
@@ -367,7 +494,12 @@ namespace NGraphics
 
 		public override Rect SampleableBox {
 			get {
-				throw new NotSupportedException ();
+				var edges = GetEdgeSamples (1, 2, 8);
+				var bbb = new BoundingBoxBuilder ();
+				foreach (var e in edges) {
+					bbb.Add (e.Points);
+				}
+				return bbb.BoundingBox;
 			}
 		}
 
@@ -396,6 +528,7 @@ namespace NGraphics
 
 			return edges.ToArray ();
 		}
+
 	}
 }
 

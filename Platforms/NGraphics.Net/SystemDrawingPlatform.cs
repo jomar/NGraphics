@@ -4,6 +4,7 @@ using System.Drawing.Imaging;
 using System.Collections.Generic;
 using System.Drawing.Drawing2D;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace NGraphics
@@ -11,6 +12,11 @@ namespace NGraphics
 	public class SystemDrawingPlatform : IPlatform
 	{
 		public string Name { get { return "Net"; } }
+
+		public Task<Stream> OpenFileStreamForWritingAsync (string path)
+		{
+			return Task.FromResult ((Stream)new FileStream (path, FileMode.Create, FileAccess.Write, FileShare.Read));
+		}
 
 		public IImageCanvas CreateImageCanvas (Size size, double scale = 1.0, bool transparency = true)
 		{
@@ -46,6 +52,31 @@ namespace NGraphics
 			}
 			return new ImageImage (bitmap);
 		}
+
+		public static TextMetrics GlobalMeasureText (Graphics graphics, string text, Font font)
+		{
+			using (var netFont = new System.Drawing.Font(font.Name, (float)font.Size, FontStyle.Regular, GraphicsUnit.Pixel))
+			{
+				var result = graphics.MeasureString(text, netFont);
+                var resultUnit = graphics.PageUnit;
+                var asc = netFont.FontFamily.GetCellAscent(netFont.Style);
+                var desc = netFont.FontFamily.GetCellDescent(netFont.Style);
+                var ascale = result.Height / (asc + desc);
+                return new TextMetrics {
+					Width = result.Width,
+					Ascent = asc * ascale,
+					Descent = desc * ascale,
+                };
+			}
+		}
+
+		Graphics measureGraphics = Graphics.FromImage (new Bitmap (1, 1));
+
+		public TextMetrics MeasureText (string text, Font font)
+		{
+			return GlobalMeasureText (measureGraphics, text, font);
+		}
+
 	}
 
 	public class ImageImage : IImage
@@ -156,24 +187,23 @@ namespace NGraphics
 			}
 		}
 
-		public Size MeasureText(string text, Font font)
+		public TextMetrics MeasureText(string text, Font font)
 		{
-			using (var netFont = new System.Drawing.Font(font.Name, (float)font.Size, FontStyle.Regular))
-			{
-				var result = graphics.MeasureString(text, netFont);
-				return new Size(result.Width, result.Height);
-			}
+			return SystemDrawingPlatform.GlobalMeasureText (graphics, text, font);
 		}
 
 		public void DrawText (string text, Rect frame, Font font, TextAlignment alignment = TextAlignment.Left, Pen pen = null, Brush brush = null)
 		{
 			if (brush == null)
 				return;
-			var sdfont = new System.Drawing.Font (font.Family, (float)font.Size, FontStyle.Regular, GraphicsUnit.Pixel);
-			var sz = graphics.MeasureString (text, sdfont);
-			var point = frame.Position;
+			var netFont = new System.Drawing.Font (font.Family, (float)font.Size, FontStyle.Regular, GraphicsUnit.Pixel);
+			var sz = graphics.MeasureString (text, netFont);
+            var asc = netFont.FontFamily.GetCellAscent(netFont.Style);
+            var desc = netFont.FontFamily.GetCellDescent(netFont.Style);
+            var ascale = sz.Height / (asc + desc);
+            var point = frame.Position;
             var fr = new Rect (point, new Size (sz.Width, sz.Height));
-            graphics.DrawString (text, sdfont, Conversions.GetBrush (brush, fr), Conversions.GetPointF (point - new Point (0, sdfont.Height)));
+            graphics.DrawString (text, netFont, Conversions.GetBrush (brush, fr), Conversions.GetPointF (point - new Point (0, sz.Height - desc * ascale)));
 		}
 		public void DrawPath (IEnumerable<PathOp> ops, Pen pen = null, Brush brush = null)
 		{
@@ -327,8 +357,15 @@ namespace NGraphics
 
 		public static System.Drawing.Pen GetPen (this Pen pen)
 		{
-			return new System.Drawing.Pen (GetColor (pen.Color), (float)pen.Width);
-		}
+            var drawingPen = new System.Drawing.Pen(GetColor(pen.Color), (float)pen.Width);
+
+            if (pen.DashPattern != null && pen.DashPattern.Any())
+            {
+                drawingPen.DashPattern = pen.DashPattern.ToArray();
+            }
+
+            return drawingPen;
+        }
 
         static ColorBlend BuildBlend (List<GradientStop> stops, bool reverse = false)
         {

@@ -64,7 +64,7 @@ namespace NGraphics.WindowsStore.Test
 				System.Diagnostics.Debug.WriteLine ("POSTING " + url);
 				stream.Position = 0;
 				var content = new StreamContent (stream);
-				await client.PostAsync (url, content);
+                await client.PostAsync (url, content);
 			};
 
 			foreach (var t in tfts) {

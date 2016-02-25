@@ -8,6 +8,8 @@ namespace NGraphics
 	{
 		Rect frame;
 
+		public Rect Frame { get { return frame; } }
+
 		public Ellipse (Rect frame, Pen pen = null, Brush brush = null)
 			: base (pen, brush)
 		{
@@ -24,6 +26,12 @@ namespace NGraphics
 		public Ellipse (double diameter)
 			: this (Point.Zero, new Size (diameter))
 		{
+		}
+
+		protected override void AcceptVisitor (IElementVisitor visitor)
+		{
+			visitor.Visit (this);
+			visitor.EndVisit (this);
 		}
 
 		protected override void DrawElement (ICanvas canvas)

@@ -109,6 +109,13 @@ namespace NGraphics
 			return r;
 		}
 
+		public Rect GetInflated (double d)
+		{
+			var r = this;
+			r.Inflate (d, d);
+			return r;
+		}
+
 		public Rect GetInflated (Size padding)
 		{
 			return GetInflated (padding.Width, padding.Height);
@@ -209,6 +216,12 @@ namespace NGraphics
 				bb = bb.Union (point);
 			}
 			nbb++;
+		}
+		public void Add (IEnumerable<Point> points)
+		{
+			foreach (var p in points) {
+				Add (p);
+			}
 		}
 	}
 }

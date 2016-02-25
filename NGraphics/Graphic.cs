@@ -24,6 +24,11 @@ namespace NGraphics
 		{
 		}
 
+		public Graphic ()
+			: this (new Size ())
+		{
+		}
+
 		public Graphic Clone ()
 		{
 			var g = new Graphic (Size, ViewBox) {
@@ -34,6 +39,12 @@ namespace NGraphics
 			g.Children.AddRange (Children.Select (x => x.Clone ()));
 
 			return g;
+		}
+
+		public Transform Transform {
+			get {
+				return Transform.StretchFillRect (ViewBox, new Rect (Point.Zero, Size));
+			}
 		}
 
 		public Graphic TransformGeometry (Transform transform)
@@ -51,17 +62,7 @@ namespace NGraphics
 			//
 			// Scale the viewBox into the size
 			//
-			var sx = 1.0;
-			if (ViewBox.Width > 0) {
-				sx = Size.Width / ViewBox.Width;
-			}
-			var sy = 1.0;
-			if (ViewBox.Height > 0) {
-				sy = Size.Height / ViewBox.Height;
-			}
-
-			canvas.Scale (sx, sy);
-			canvas.Translate (-ViewBox.X, -ViewBox.Y);
+			canvas.Transform (Transform);
 
 			//
 			// Draw
@@ -77,6 +78,12 @@ namespace NGraphics
 		{
 			var svgr = new SvgReader (reader);
 			return svgr.Graphic;
+		}
+
+		public void WriteSvg (System.IO.TextWriter writer)
+		{
+			var w = new SvgWriter (this, writer);
+			w.Write ();
 		}
 
 		public override string ToString ()

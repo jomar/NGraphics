@@ -9,6 +9,16 @@ namespace NGraphics
 	{
 		public string Name { get { return "Null"; } }
 
+		public TextMetrics MeasureText (string text, Font font)
+		{
+			return new TextMetrics ();
+		}
+
+		public Task<Stream> OpenFileStreamForWritingAsync (string path)
+		{
+			return Task.FromResult ((Stream)new MemoryStream ());
+		}
+
 		public IImageCanvas CreateImageCanvas (Size size, double scale = 1.0, bool transparency = true)
 		{
 			return new NullImageSurface ();
@@ -45,9 +55,9 @@ namespace NGraphics
 			public void RestoreState ()
 			{
 			}
-			public Size MeasureText(string text, Font font)
+			public TextMetrics MeasureText(string text, Font font)
 			{
-				return Size.Zero;
+				return new TextMetrics ();
 			}
 			public void DrawText (string text, Rect frame, Font font, TextAlignment alignment = TextAlignment.Left, Pen pen = null, Brush brush = null)
 			{

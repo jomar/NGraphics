@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Xml;
 using System.Xml.Linq;
 using System.Globalization;
 using System.Diagnostics;
@@ -126,54 +127,11 @@ namespace NGraphics
 					var fontSize = ReadTextFontSize(e);
 					if (fontSize >= 0)
 						font.Size = fontSize;
+
 					TextAlignment textAlignment = ReadTextAlignment(e, TextAlignment.Left);
-
-					var nodes = e.Nodes();
-					if (nodes != null && nodes.Count() > 0)
-					{
-						var g = new Group ();
-						foreach(var node in nodes) {
-							if (node.NodeType == System.Xml.XmlNodeType.Text) {
-								var ttext = node.ToString().Trim();
-								var textEntry = new Text (ttext, new Rect (new Point (x, y), new Size (double.MaxValue, double.MaxValue)), font, textAlignment, pen, brush);
-								g.Children.Add(textEntry);
-							} else if (node.NodeType == System.Xml.XmlNodeType.Element && (node as XElement).Name.LocalName == "tspan") {
-								var tspan = node as XElement;
-								if (!string.IsNullOrWhiteSpace(tspan.Value))
-								{
-									var dText = tspan.Value.Trim();
-									var dX = tspan.Attribute("x") != null ? ReadNumber(tspan.Attribute("x")) : x;
-									var dY = tspan.Attribute("y") != null ? ReadNumber(tspan.Attribute("y")) : x;
-
-									bool tspanHasPen = false;
-									bool tspanHasBrush = false;
-									Brush tspanBrush = null;
-									Pen tspanPen = null;
-									ApplyStyle (ParseStyle(tspan.Attribute ("style") != null ? tspan.Attribute ("style").Value : null), ref pen, out hasPen, ref brush, out hasBrush);
-
-									tspanPen = tspanHasPen ? tspanPen : pen;
-									tspanBrush = tspanHasBrush ? tspanBrush : brush;
-
-									var dFont = new Font (font.Name, font.Size);
-									dFont.Family = font.Family;
-									var dFontFamily = ReadTextFontFamily(tspan);
-									if (!string.IsNullOrEmpty(dFontFamily))
-										font.Family = dFontFamily;
-									var dFontSize = ReadTextFontSize(tspan);
-									if (dFontSize >= 0)
-										font.Size = dFontSize;
-									TextAlignment dTextAlignment = ReadTextAlignment(tspan, textAlignment);
-
-									var dR = new Text (dText, new Rect (new Point (dX, dY), new Size (double.MaxValue, double.MaxValue)), dFont, dTextAlignment, tspanPen, tspanBrush);
-									g.Children.Add(dR);
-								}
-							}
-						}
-						r = g;
-					} else {
-						var text = e.Value.Trim();
-						r = new Text (text, new Rect (new Point (x, y), new Size (double.MaxValue, double.MaxValue)), font, textAlignment, pen, brush);
-					}
+					var txt = new Text (new Rect (new Point (x, y), new Size (double.MaxValue, double.MaxValue)), font, textAlignment, pen, brush);
+					ReadTextSpans (txt, e);
+					r = txt;
 				}
 				break;
 			case "rect":
@@ -283,7 +241,10 @@ namespace NGraphics
 					var x2 = ReadNumber ( e.Attribute("x2") );
 					var y1 = ReadNumber ( e.Attribute("y1") );
 					var y2 = ReadNumber ( e.Attribute("y2") );
-					r = new Line(new Point(x1, y1), new Point(x2, y2), pen);
+					var p = new Path (pen, null);
+					p.MoveTo (x1, y1);
+					p.LineTo (x2, y2);
+					r = p;
 				}
 				break;
 
@@ -331,6 +292,10 @@ namespace NGraphics
 
 			if (r != null) {
 				r.Transform = ReadTransform (ReadString (e.Attribute ("transform")));
+				var ida = e.Attribute("id");
+				if (ida != null && !string.IsNullOrEmpty (ida.Value)) {
+					r.Id = ida.Value.Trim ();
+				}
 				list.Add (r);
 			}
 		}
@@ -436,12 +401,12 @@ namespace NGraphics
 			if (key.Equals("stroke-dasharray", StringComparison.OrdinalIgnoreCase))
 			{
 				var values = value.Split(new [] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-				var dashes = new List<double>();
+				var dashes = new List<float>();
 				foreach(var v in values)
-					dashes.Add(ReadNumber(v));
+					dashes.Add((float)ReadNumber(v));
 				if (pen == null)
 					pen = new Pen();
-				pen.DashArray = dashes.ToArray();
+				pen.DashPattern = dashes.ToList();
 			}
 
 			if (key.Equals("stroke-opacity", StringComparison.OrdinalIgnoreCase))
@@ -658,6 +623,51 @@ namespace NGraphics
 			}
 
 			return t;
+		}
+
+		void ReadTextSpans (Text txt, XElement e)
+		{
+			foreach (XNode c in e.Nodes ()) {
+				if (c.NodeType == XmlNodeType.Text) {
+					txt.Spans.Add (new TextSpan (((XText)c).Value));
+				} else if (c.NodeType == XmlNodeType.Element) {
+					var ce = (XElement)c;
+					if (ce.Name.LocalName == "tspan") {
+						var tspan = new TextSpan (ce.Value);
+						var x = ReadOptionalNumber (ce.Attribute ("x"));
+						var y = ReadOptionalNumber (ce.Attribute ("y"));
+						if (x.HasValue && y.HasValue) {
+							tspan.Position = new Point (x.Value, y.Value);
+						}
+
+						var font = txt.Font;
+
+						var ffamily = ReadTextFontFamily (ce);
+						if (!string.IsNullOrWhiteSpace (ffamily)) {
+							font = font.WithFamily (ffamily);
+						}
+						var fweight = ReadTextFontWeight (ce);
+						if (!string.IsNullOrWhiteSpace (fweight)) {
+							font = font.WithWeight (fweight);
+						}
+						var fstyle = ReadTextFontStyle (ce);
+						if (!string.IsNullOrWhiteSpace (fstyle)) {
+							font = font.WithStyle (fstyle);
+						}
+						var fsize = ReadTextFontSize (ce);
+						if (fsize > 0) {
+							font = font.WithSize (fsize);
+						}
+
+						if (font != txt.Font) {
+							tspan.Font = font;
+						}
+
+						txt.Spans.Add (tspan);
+					}
+				}
+			}
+			txt.Trim ();
 		}
 
 		static readonly char[] WSC = new char[] { ',', ' ', '\t', '\n', '\r' };
@@ -956,12 +966,12 @@ namespace NGraphics
 			throw new NotSupportedException ("Color " + s);
 		}
 
-		string ReadTextFontFamily(XElement element)
+		string ReadTextFontAttr (XElement element, string attr)
 		{
 			string value = null;
 			if (element != null)
 			{
-				var attrib = element.Attribute("font-family");
+				var attrib = element.Attribute(attr);
 				if (attrib != null && !string.IsNullOrWhiteSpace(attrib.Value))
 					value = attrib.Value.Trim();
 				else
@@ -969,12 +979,27 @@ namespace NGraphics
 					var style = element.Attribute("style");
 					if (style != null && !string.IsNullOrWhiteSpace(style.Value))
 					{
-						value = GetString(ParseStyle(style.Value), "font-family");
+						value = GetString(ParseStyle(style.Value), "attr");
 					}
 				}
 			}
 			return value;
 
+		}
+
+		string ReadTextFontFamily (XElement element)
+		{
+			return ReadTextFontAttr (element, "font-family");
+		}
+
+		string ReadTextFontWeight (XElement element)
+		{
+			return ReadTextFontAttr (element, "font-weight");
+		}
+
+		string ReadTextFontStyle (XElement element)
+		{
+			return ReadTextFontAttr (element, "font-style");
 		}
 
 		double ReadTextFontSize(XElement element)
@@ -1016,14 +1041,16 @@ namespace NGraphics
 				}
 			}
 
-			if (value == "start")
-				return TextAlignment.Left;
-			else if (value == "end")
-				return TextAlignment.Right;
-			else if (value == "middle")
-				return TextAlignment.Center;
-			else
-				return defaultValue;
+			switch (value) {
+				case "start":
+					return TextAlignment.Left;
+				case "end":
+					return TextAlignment.Right;
+				case "middle":
+					return TextAlignment.Center;
+				default:
+					return defaultValue;
+			}
 		}
 
 		double ReadNumber (XAttribute a)
@@ -1036,6 +1063,13 @@ namespace NGraphics
 			if (a == null)
 				return 0;
 			return ReadNumber (a.Value, parentSize);
+		}
+
+		double? ReadOptionalNumber (XAttribute a)
+		{
+			if (a == null)
+				return null;
+			return ReadNumber (a.Value);
 		}
 
 		Regex unitRe = new Regex("px|pt|em|ex|pc|cm|mm|in");

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace NGraphics
 {
@@ -10,11 +11,18 @@ namespace NGraphics
 		IImage LoadImage (string path);
 		IImage LoadImage (Stream stream);
 		IImage CreateImage (Color[] colors, int pixelWidth, double scale = 1.0);
+		TextMetrics MeasureText (string text, Font font);
+		Task<Stream> OpenFileStreamForWritingAsync (string path);
 	}
 
 	public static class PlatformEx
 	{
 		public static IPlatform CurrentPlatform;
+
+		public static GraphicCanvas CreateGraphicCanvas (this IPlatform platform, Size size)
+		{
+			return new GraphicCanvas (size, platform);
+		}
 
 		public static IImage CreateImage (this IPlatform platform, Func<int, int, Color> colorFunc, Size size, double scale = 1.0)
 		{

@@ -10,7 +10,7 @@ namespace NGraphics
 		void Transform (Transform transform);
 		void RestoreState ();
 
-		Size MeasureText (string text, Font font);
+		TextMetrics MeasureText (string text, Font font);
 		void DrawText (string text, Rect frame, Font font, TextAlignment alignment = TextAlignment.Left, Pen pen = null, Brush brush = null);
 		void DrawPath (IEnumerable<PathOp> ops, Pen pen = null, Brush brush = null);
 		void DrawRectangle (Rect frame, Size corner, Pen pen = null, Brush brush = null);
@@ -104,6 +104,10 @@ namespace NGraphics
 			}
 		}
 
+		public static void DrawRectangle (this ICanvas canvas, Rect frame, Color color, double width = 1)
+		{
+			canvas.DrawRectangle (frame, Size.Zero, new Pen (color, width), null);
+		}
 		public static void DrawRectangle (this ICanvas canvas, Rect frame, Pen pen = null, Brush brush = null)
 		{
 			canvas.DrawRectangle (frame, Size.Zero, pen, brush);
@@ -137,6 +141,10 @@ namespace NGraphics
 			canvas.DrawRectangle (frame, pen: new Pen (color, width));
 		}
 
+		public static void DrawEllipse (this ICanvas canvas, Rect frame, Color color, double width = 1)
+		{
+			canvas.DrawEllipse (frame, new Pen (color, width), null);
+		}
 		public static void DrawEllipse (this ICanvas canvas, double x, double y, double width, double height, Pen pen = null, Brush brush = null)
 		{
 			canvas.DrawEllipse (new Rect (x, y, width, height), pen, brush);
@@ -243,6 +251,11 @@ namespace NGraphics
 		public static void DrawText (this ICanvas canvas, string text, Point point, Font font, Color color)
 		{
 			canvas.DrawText (text, new Rect (point, Size.MaxValue), font, brush: new SolidBrush (color));
+		}
+
+		public static void DrawText (this ICanvas canvas, string text, Rect frame, Font font, TextAlignment alignment, Color color)
+		{
+			canvas.DrawText (text, frame, font, alignment, brush: new SolidBrush (color));
 		}
 	}
 }
