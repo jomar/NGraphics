@@ -283,6 +283,7 @@ namespace NGraphics
 
 				// color definition that can be referred to by other elements
 				case "linearGradient":
+				case "radialGradient":
 				break;
 
 
