@@ -62,6 +62,10 @@ namespace NGraphics
 				size.Height *= viewBox.Height;
 			}
 
+			if (heightA == null && widthA == null && viewBoxA != null) {
+				size = new Size(viewBox.Width, viewBox.Height);
+			}
+
 			//
 			// Add the elements
 			//
@@ -202,7 +206,13 @@ namespace NGraphics
 					var groupId = e.Attribute("id");
 					if (groupId != null && !string.IsNullOrEmpty(groupId.Value))
 						g.Id = groupId.Value;
+
+					var groupOpacity = e.Attribute ("opacity");
+					if (groupOpacity != null && !string.IsNullOrEmpty (groupOpacity.Value)) 
+						g.Opacity = ReadNumber (groupOpacity);
+
 					AddElements (g.Children, e.Elements (), pen, brush);
+
 					r = g;
 				}
 				break;
@@ -501,7 +511,7 @@ namespace NGraphics
 						pen = new Pen();
 					pen.Color = pen.Color.WithAlpha(ReadNumber(opacity));
 				}
-			}
+            }
 
 			//
 			// Brush
@@ -707,6 +717,7 @@ namespace NGraphics
 		void ReadPath (Path p, string pathDescriptor)
 		{
 			Match m = pathRegex.Match(pathDescriptor);
+            Point previousPoint = new Point();
 			while(m.Success)
 			{
 				var match = m.Value.TrimStart ();
@@ -719,7 +730,6 @@ namespace NGraphics
 					match = negativeNumberRe.Replace(match.Substring(1), " -");
 					var args = match.Split(WSC, StringSplitOptions.RemoveEmptyEntries);
 
-					Point previousPoint = new Point ();
 					int index = 0;
 					while(index < args.Length)
 					{
@@ -738,7 +748,7 @@ namespace NGraphics
 								}
 							}
 						}
-
+                        
 						if ((op == 'M' || op == 'm') && args.Length >= index+2) {
 							var point = new Point (ReadNumber (args [index]), ReadNumber (args [index+1]));
 							if (op == 'm')
@@ -802,6 +812,8 @@ namespace NGraphics
 						} else {
 							throw new NotSupportedException ("Path Operation " + op);
 						}
+
+                        previousPoint = p.Operations.Last().EndPoint;
 					}
 				}
 				m = m.NextMatch();

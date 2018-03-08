@@ -78,7 +78,8 @@ namespace NGraphics
 			unsafe {
 				fixed (byte *x = mem.GetBuffer ()) {
 					var provider = new CGDataProvider (new IntPtr (x), (int)mem.Length, false);
-					var image = CGImage.FromPNG (provider, null, false, CGColorRenderingIntent.Default);
+					var image = CGImage.FromPNG (provider, null, false, CGColorRenderingIntent.Default)
+                        ?? CGImage.FromJPEG (provider, null, false, CGColorRenderingIntent.Default);
 					return new CGImageImage (image, 1);
 				}
 			}
@@ -422,7 +423,7 @@ namespace NGraphics
 						Point c1, c2;
 						at.GetCircles (pp, out c1, out c2);
 
-						var circleCenter = at.LargeArc ^ !at.SweepClockwise ? c2 : c1;
+						var circleCenter = (at.LargeArc ^ at.SweepClockwise) ? c1 : c2;
 
 						var startAngle = (float)Math.Atan2(pp.Y - circleCenter.Y, pp.X - circleCenter.X);
 						var endAngle = (float)Math.Atan2(p.Y - circleCenter.Y, p.X - circleCenter.X);
@@ -432,7 +433,9 @@ namespace NGraphics
 							continue;
 						}
 
-						context.AddArc((nfloat)circleCenter.X, (nfloat)circleCenter.Y, (nfloat)at.Radius.Min, startAngle, endAngle, at.SweepClockwise);
+						var clockwise = !at.SweepClockwise;
+
+						context.AddArc((nfloat)circleCenter.X, (nfloat)circleCenter.Y, (nfloat)at.Radius.Min, startAngle, endAngle, clockwise);
 
 						bb.Add (p);
 						continue;
@@ -526,11 +529,11 @@ namespace NGraphics
 
 		CGPathDrawingMode SetPenAndBrush (Pen pen, Brush brush)
 		{
-			var mode = CGPathDrawingMode.Fill;
+			var mode = CGPathDrawingMode.EOFill;
 			if (brush != null) {
 				SetBrush (brush);
 				if (pen != null)
-					mode = CGPathDrawingMode.FillStroke;
+					mode = CGPathDrawingMode.EOFillStroke;
 			}
 			if (pen != null) {
 				SetPen (pen);

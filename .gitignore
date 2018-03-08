@@ -1,5 +1,7 @@
 .DS_Store
 .com.apple.timemachine.supported
+/.vs
+/Releases
 
 bin
 obj
@@ -7,6 +9,8 @@ packages
 *.userprefs
 *.suo
 *.nupkg
+
+project.lock.json
 
 build.sh
 runfserve.sh
