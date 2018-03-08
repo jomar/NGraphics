@@ -67,6 +67,7 @@ namespace NGraphics
 			//
 			// Draw
 			//
+			canvas.ClipRect(ViewBox);
 			foreach (var c in Children) {
 				c.Draw (canvas);
 			}

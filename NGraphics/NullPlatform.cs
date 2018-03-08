@@ -65,6 +65,12 @@ namespace NGraphics
 			public void DrawPath (IEnumerable<PathOp> ops, Pen pen = null, Brush brush = null)
 			{
 			}
+			public void ClipRect (Rect frame)
+			{
+			}
+			public void ClipPath (IEnumerable<PathOp> ops)
+			{
+			}
 			public void DrawRectangle (Rect frame, Size corner, Pen pen = null, Brush brush = null)
 			{
 			}

@@ -205,60 +205,25 @@ namespace NGraphics
             var fr = new Rect (point, new Size (sz.Width, sz.Height));
             graphics.DrawString (text, netFont, Conversions.GetBrush (brush, fr), Conversions.GetPointF (point - new Point (0, sz.Height - desc * ascale)));
 		}
+		
+		public void ClipRect(Rect frame)
+		{
+			graphics.SetClip(Conversions.GetRectangleF(frame));
+		}
+		
+		public void ClipPath(IEnumerable<PathOp> ops)
+		{
+			using (var path = CreateGraphicsPath(ops, null))
+			{
+				graphics.SetClip(path);
+			}
+		}
+		
 		public void DrawPath (IEnumerable<PathOp> ops, Pen pen = null, Brush brush = null)
 		{
-			using (var path = new GraphicsPath ()) {
-
-                var bb = new BoundingBoxBuilder ();
-
-				var position = Point.Zero;
-
-				foreach (var op in ops) {
-					var mt = op as MoveTo;
-					if (mt != null) {
-						var p = mt.Point;
-						position = p;
-                        bb.Add (p);
-						continue;
-					}
-					var lt = op as LineTo;
-					if (lt != null) {
-						var p = lt.Point;
-						path.AddLine (Conversions.GetPointF (position), Conversions.GetPointF (p));
-						position = p;
-                        bb.Add (p);
-                        continue;
-					}
-                    var at = op as ArcTo;
-                    if (at != null) {
-                        var p = at.Point;
-                        path.AddLine (Conversions.GetPointF (position), Conversions.GetPointF (p));
-                        position = p;
-                        bb.Add (p);
-                        continue;
-                    }
-                    var ct = op as CurveTo;
-                    if (ct != null) {
-                        var p = ct.Point;
-                        var c1 = ct.Control1;
-                        var c2 = ct.Control2;
-                        path.AddBezier (Conversions.GetPointF (position), Conversions.GetPointF (c1),
-                            Conversions.GetPointF (c2), Conversions.GetPointF (p));
-                        position = p;
-                        bb.Add (p);
-                        bb.Add (c1);
-                        bb.Add (c2);
-                        continue;
-                    }
-                    var cp = op as ClosePath;
-					if (cp != null) {
-						path.CloseFigure ();
-						continue;
-					}
-
-					throw new NotSupportedException ("Path Op " + op);
-				}
-
+			var bb = new BoundingBoxBuilder();
+			using (var path = CreateGraphicsPath(ops, bb))
+			{
 				var frame = bb.BoundingBox;
 				if (brush != null) {
 					graphics.FillPath (brush.GetBrush (frame), path);
@@ -268,6 +233,67 @@ namespace NGraphics
 				}
 			}
 		}
+		
+		private GraphicsPath CreateGraphicsPath(IEnumerable<PathOp> ops, BoundingBoxBuilder bb)
+		{
+			var path = new GraphicsPath();
+			
+			var position = Point.Zero;
+
+			foreach (var op in ops) {
+				var mt = op as MoveTo;
+				if (mt != null) {
+					var p = mt.Point;
+					position = p;
+					if (bb != null)
+	                    bb.Add (p);
+					continue;
+				}
+				var lt = op as LineTo;
+				if (lt != null) {
+					var p = lt.Point;
+					path.AddLine (Conversions.GetPointF (position), Conversions.GetPointF (p));
+					position = p;
+					if (bb != null)
+	                    bb.Add (p);
+                    continue;
+				}
+                var at = op as ArcTo;
+                if (at != null) {
+                    var p = at.Point;
+                    path.AddLine (Conversions.GetPointF (position), Conversions.GetPointF (p));
+                    position = p;
+                    if (bb != null)
+	                    bb.Add (p);
+                    continue;
+                }
+                var ct = op as CurveTo;
+                if (ct != null) {
+                    var p = ct.Point;
+                    var c1 = ct.Control1;
+                    var c2 = ct.Control2;
+                    path.AddBezier (Conversions.GetPointF (position), Conversions.GetPointF (c1),
+                        Conversions.GetPointF (c2), Conversions.GetPointF (p));
+                    position = p;
+                    if (bb != null)
+                    {
+	                    bb.Add (p);
+	                    bb.Add (c1);
+	                    bb.Add (c2);
+                    }
+                    continue;
+                }
+                var cp = op as ClosePath;
+				if (cp != null) {
+					path.CloseFigure ();
+					continue;
+				}
+
+				throw new NotSupportedException ("Path Op " + op);
+			}
+			return path;
+		}
+		
 		public void DrawRectangle (Rect frame, Size corner, Pen pen = null, Brush brush = null)
 		{
 			if (corner.Width > 0 || corner.Height > 0) {

@@ -318,91 +318,28 @@ namespace NGraphics
 			AddBrushPaint (paint, brush, fr);
 			graphics.DrawText (text, (float)point.X, (float)point.Y, paint);
 		}
+		
+		public void ClipRect(Rect frame)
+		{
+			graphics.ClipRect(Conversions.GetRectF(frame));
+		}
+		
+		public void ClipPath(IEnumerable<PathOp> ops)
+		{
+			using(var path = CreatePath(ops, null))
+			{
+				graphics.ClipPath(path);
+			}
+		}
+		
 		public void DrawPath (IEnumerable<PathOp> ops, Pen pen = null, Brush brush = null)
 		{
 			if (pen == null && brush == null)
 				return;
 
-			using (var path = new global::Android.Graphics.Path ()) {
-
-				var bb = new BoundingBoxBuilder ();
-
-				Point? prevPoint = null;
-
-				foreach (var op in ops) {
-					var mt = op as MoveTo;
-					if (mt != null) {
-						var p = mt.Point;
-						path.MoveTo ((float)p.X, (float)p.Y);
-						bb.Add (p);
-						prevPoint = p;
-						continue;
-					}
-					var lt = op as LineTo;
-					if (lt != null) {
-						var p = lt.Point;
-						path.LineTo ((float)p.X, (float)p.Y);
-						bb.Add (p);
-						prevPoint = p;
-						continue;
-					}
-					var at = op as ArcTo;
-					if (at != null) {
-						var p = at.Point;
-
-						if (!prevPoint.HasValue) {
-							throw new NotSupportedException("Cannot begin path with Arc.");
-						}
-
-						var pp = prevPoint.Value;
-
-						Point c1, c2;
-						at.GetCircles(pp, out c1, out c2);
-
-						var circleCenter = (at.LargeArc ^ at.SweepClockwise) ? c1 : c2;
-						var rect = new Rect(circleCenter - at.Radius, at.Radius * 2);
-
-						var startAngle = Conversions.RadToDeg((float)Math.Atan2(pp.Y - circleCenter.Y, pp.X - circleCenter.X));
-						var endAngle = Conversions.RadToDeg((float)Math.Atan2(p.Y - circleCenter.Y, p.X - circleCenter.X));
-
-						var sweepAngle = endAngle - startAngle;
-
-						if (at.SweepClockwise && sweepAngle < 0) {
-							// If we want to go CW, sweepAngle needs to be positive
-							sweepAngle += 360.0f;
-						}
-						else if (!at.SweepClockwise && sweepAngle > 0) {
-							// If we want to go CCW, sweepAngle needs to be negative
-							sweepAngle -= 360.0f;
-						}
-
-						path.AddArc(Conversions.GetRectF(rect), startAngle, sweepAngle);
-
-						bb.Add (p);
-						prevPoint = p;
-						continue;
-					}
-                    var ct = op as CurveTo;
-                    if (ct != null) {
-                        var p = ct.Point;
-                        var c1 = ct.Control1;
-                        var c2 = ct.Control2;
-						path.CubicTo ((float)c1.X, (float)c1.Y, (float)c2.X, (float)c2.Y, (float)p.X, (float)p.Y);
-						bb.Add (p);
-						bb.Add (c1);
-						bb.Add (c2);
-						prevPoint = p;
-                        continue;
-                    }
-                    var cp = op as ClosePath;
-					if (cp != null) {
-						path.Close ();
-						continue;
-					}
-
-					throw new NotSupportedException ("Path Op " + op);
-				}
-
+			var bb = new BoundingBoxBuilder ();
+			using (var path = CreatePath(ops, bb))
+			{
 				var frame = bb.BoundingBox;
 
 				if (brush != null) {
@@ -416,6 +353,91 @@ namespace NGraphics
 				}
 			}
 		}
+		
+		private global::Android.Graphics.Path CreatePath(IEnumerable<PathOp> ops, BoundingBoxBuilder bb)
+		{
+			var path = new global::Android.Graphics.Path ();
+
+			Point? prevPoint = null;
+
+			foreach (var op in ops) {
+				var mt = op as MoveTo;
+				if (mt != null) {
+					var p = mt.Point;
+					path.MoveTo ((float)p.X, (float)p.Y);
+					if (bb != null)
+						bb.Add (p);
+					prevPoint = p;
+					continue;
+				}
+				var lt = op as LineTo;
+				if (lt != null) {
+					var p = lt.Point;
+					path.LineTo ((float)p.X, (float)p.Y);
+					if (bb != null)
+						bb.Add (p);
+					prevPoint = p;
+					continue;
+				}
+				var at = op as ArcTo;
+				if (at != null) {
+					var p = at.Point;
+
+					if (!prevPoint.HasValue) {
+						throw new NotSupportedException("Cannot begin path with Arc.");
+					}
+
+					var pp = prevPoint.Value;
+
+					Point c1, c2;
+					at.GetCircles(pp, out c1, out c2);
+
+					var circleCenter = (at.LargeArc ^ at.SweepClockwise) ? c1 : c2;
+					var rect = new Rect(circleCenter - at.Radius, at.Radius * 2);
+
+					var startAngle = Conversions.RadToDeg((float)Math.Atan2(pp.Y - circleCenter.Y, pp.X - circleCenter.X));
+					var endAngle = Conversions.RadToDeg((float)Math.Atan2(p.Y - circleCenter.Y, p.X - circleCenter.X));
+
+					var sweepAngle = endAngle - startAngle;
+
+					if (at.SweepClockwise && sweepAngle < 0) {
+						// If we want to go CW, sweepAngle needs to be positive
+						sweepAngle += 360.0f;
+					}
+					else if (!at.SweepClockwise && sweepAngle > 0) {
+						// If we want to go CCW, sweepAngle needs to be negative
+						sweepAngle -= 360.0f;
+					}
+
+					path.AddArc(Conversions.GetRectF(rect), startAngle, sweepAngle);
+
+					bb.Add (p);
+					prevPoint = p;
+					continue;
+				}
+                var ct = op as CurveTo;
+                if (ct != null) {
+                    var p = ct.Point;
+                    var c1 = ct.Control1;
+                    var c2 = ct.Control2;
+					path.CubicTo ((float)c1.X, (float)c1.Y, (float)c2.X, (float)c2.Y, (float)p.X, (float)p.Y);
+					bb.Add (p);
+					bb.Add (c1);
+					bb.Add (c2);
+					prevPoint = p;
+                    continue;
+                }
+                var cp = op as ClosePath;
+				if (cp != null) {
+					path.Close ();
+					continue;
+				}
+
+				throw new NotSupportedException ("Path Op " + op);
+			}
+			return path;
+		}
+		
 		public void DrawRectangle (Rect frame, Size corner, Pen pen = null, Brush brush = null)
 		{
 			var left = (float)(frame.X);

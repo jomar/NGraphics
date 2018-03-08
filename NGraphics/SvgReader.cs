@@ -31,7 +31,7 @@ namespace NGraphics
 			var ns = svg.Name.Namespace;
 
 			//
-			// Find the defs (gradients)
+			// Find the defs (gradients, clipPaths)
 			//
 			foreach (var d in svg.Descendants ()) {
 				var idA = d.Attribute ("id");
@@ -172,12 +172,17 @@ namespace NGraphics
 
 			case "path":
 				{
-					var dA = e.Attribute ("d");
-					if (dA != null && !string.IsNullOrWhiteSpace (dA.Value)) {
-						var p = new Path (pen, brush);
-						ReadPath (p, dA.Value);
-						r = p;
+					var p = CreatePath(e, pen, brush);
+					
+					var clipPathAttrib = e.Attribute("clip-path");
+					if (clipPathAttrib != null && !string.IsNullOrEmpty(clipPathAttrib.Value)) {
+						var urlM = definitionUrlRe.Match(clipPathAttrib.Value);
+						if (urlM.Success) {
+							var id = urlM.Groups [1].Value.Trim ();
+							p.ClipPath = GetClipPath(id);
+						}
 					}
+					r = p;
 				}
 				break;
 			case "polygon":
@@ -291,7 +296,8 @@ namespace NGraphics
 				break;
 
 
-				// color definition that can be referred to by other elements
+				// these definitions can be referred to by other elements
+				case "clipPath":
 				case "linearGradient":
 				case "radialGradient":
 				break;
@@ -364,7 +370,7 @@ namespace NGraphics
 			return defaultValue;
 		}
 
-		Regex fillUrlRe = new Regex (@"url\s*\(\s*#([^\)]+)\)");
+		Regex definitionUrlRe = new Regex (@"url\s*\(\s*#([^\)]+)\)");
 
 		void ApplyStyle (IEnumerable<XAttribute> styles, ref Pen pen, out bool hasPen, ref Brush brush, out bool hasBrush)
 		{
@@ -470,13 +476,11 @@ namespace NGraphics
 					hasPen = true;
 					if (pen == null)
 						pen = new Pen ();
-					Color color;
-					if (Colors.TryParse (stroke, out color)) {
-						if (pen.Color.Alpha == 1)
-							pen.Color = color;
-						else
-							pen.Color = color.WithAlpha (pen.Color.Alpha);
-					}
+					Color color = ReadColor(stroke);
+					if (pen.Color.Alpha == 1)
+						pen.Color = color;
+					else
+						pen.Color = color.WithAlpha (pen.Color.Alpha);
 				}
 			}
 			else
@@ -527,8 +531,13 @@ namespace NGraphics
 					brush = null;
 				} else {
 					hasBrush = true;
-					Color color;
-					if (Colors.TryParse (fill, out color)) {
+					
+					var urlM = definitionUrlRe.Match (fill);
+					if (urlM.Success) {
+						var id = urlM.Groups [1].Value.Trim ();
+						brush = GetGradientBrush(id, null);
+					} else {
+						Color color = ReadColor(fill);
 						var sb = brush as SolidBrush;
 						if (sb == null) {
 							brush = new SolidBrush (color);
@@ -538,19 +547,21 @@ namespace NGraphics
 							else
 								sb.Color = color.WithAlpha (sb.Color.Alpha);
 						}
-					} else {
-						var urlM = fillUrlRe.Match (fill);
-						if (urlM.Success) {
-							var id = urlM.Groups [1].Value.Trim ();
-							brush = GetGradientBrush(id, null);
-						} else {
-							throw new NotSupportedException ("Fill " + fill);
-						}
 					}
 				}
 			}
 			else
 				hasBrush = false;
+		}
+		
+		protected Path GetClipPath(string id)
+		{
+			XElement defE;
+			if (defs.TryGetValue (id, out defE)) {
+				if (defE.Name.LocalName == "clipPath")
+					return CreatePath(defE.FirstNode as XElement, null, null);
+			}
+			throw new Exception ("Invalid clip-path url reference: " + id);
 		}
 
 		protected GradientBrush GetGradientBrush(string fill, GradientBrush child)
@@ -713,6 +724,30 @@ namespace NGraphics
 
 		static Regex pathRegex = new Regex(@"[MLHVCSQTAZmlhvcsqtaz][^MLHVCSQTAZmlhvcsqtaz]*", RegexOptions.Singleline);
 		static Regex negativeNumberRe = new Regex("(?<=[0-9])-");
+		static Regex chainedDecimalsRe = new Regex("(?<=[0-9])\\.(?=[0-9])");
+		
+		string[] GetPathArguments(string input)
+		{
+			// make sure negative numbers are split properly
+			var cleanedString = negativeNumberRe.Replace(input.Substring(1), " -");
+			var args = cleanedString.Split(WSC, StringSplitOptions.RemoveEmptyEntries);
+			
+			var retval = new List<string>();
+			// handle chained decimals: .123.321.456
+			foreach(var arg in args)
+			{
+				var firstDotIndex = arg.IndexOf('.');
+				if (firstDotIndex != -1 && firstDotIndex != arg.LastIndexOf('.'))
+				{
+					var changedDecimals = chainedDecimalsRe.Replace(arg, (m) => " .", int.MaxValue, firstDotIndex+1);
+					retval.AddRange(changedDecimals.Split(new [] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+				}
+				else
+					retval.Add(arg);
+			}
+			
+			return retval.ToArray();
+		}
 
 		void ReadPath (Path p, string pathDescriptor)
 		{
@@ -726,29 +761,11 @@ namespace NGraphics
 				if (op == 'z' || op == 'Z') {
 					p.Close ();
 				} else {
-					// make sure negative numbers are split properly
-					match = negativeNumberRe.Replace(match.Substring(1), " -");
-					var args = match.Split(WSC, StringSplitOptions.RemoveEmptyEntries);
+					var args = GetPathArguments(match);
 
 					int index = 0;
 					while(index < args.Length)
 					{
-						if (p.Operations.Count > 0) {
-							if (!(p.Operations.Last() is ClosePath))
-								previousPoint = p.Operations.Last().EndPoint;
-							else {
-								// find start point of last path chain
-								foreach(var pathop in p.Operations.Reverse<PathOp>()) 
-								{
-									if (!(pathop is ClosePath))
-									{
-										previousPoint = pathop.EndPoint;
-										break;
-									}
-								}
-							}
-						}
-                        
 						if ((op == 'M' || op == 'm') && args.Length >= index+2) {
 							var point = new Point (ReadNumber (args [index]), ReadNumber (args [index+1]));
 							if (op == 'm')
@@ -812,12 +829,14 @@ namespace NGraphics
 						} else {
 							throw new NotSupportedException ("Path Operation " + op);
 						}
-
-                        previousPoint = p.Operations.Last().EndPoint;
+               			previousPoint = p.Operations.Last().EndPoint;
 					}
 				}
+                previousPoint = p.Operations.Last().EndPoint;
 				m = m.NextMatch();
 			}
+			if (p.Operations.Last().AutoClose)
+				p.Close ();
 		}
 
 		void ReadPoints (Path p, string pathDescriptor, bool closePath)
@@ -901,6 +920,20 @@ namespace NGraphics
 
 			return b;
 		}
+		
+		Path CreatePath(XElement element, Pen pen, Brush brush)
+		{
+			if (element != null)
+			{
+				var dA = element.Attribute ("d");
+				if (dA != null && !string.IsNullOrWhiteSpace (dA.Value)) {
+					var p = new Path (pen, brush);
+					ReadPath (p, dA.Value);
+					return p;
+				}
+			}
+			return null;
+		}
 
 		LinearGradientBrush CreateLinearGradientBrush (XElement e)
 		{
@@ -980,14 +1013,22 @@ namespace NGraphics
 
 			var s = raw.Trim ();
 
-			if (s.Length == 7 && s [0] == '#') 
+			if (s[0] == '#') 
 			{
-
-				var r = int.Parse (s.Substring (1, 2), NumberStyles.HexNumber, icult);
-				var g = int.Parse (s.Substring (3, 2), NumberStyles.HexNumber, icult);
-				var b = int.Parse (s.Substring (5, 2), NumberStyles.HexNumber, icult);
-
-				return new Color (r / 255.0, g / 255.0, b / 255.0, 1);
+				if (s.Length == 7)
+				{
+					var r = int.Parse (s.Substring (1, 2), NumberStyles.HexNumber, icult);
+					var g = int.Parse (s.Substring (3, 2), NumberStyles.HexNumber, icult);
+					var b = int.Parse (s.Substring (5, 2), NumberStyles.HexNumber, icult);
+					return new Color (r / 255.0, g / 255.0, b / 255.0, 1);
+				}
+				else if (s.Length == 4)
+				{
+					var r = int.Parse (s.Substring (1, 1), NumberStyles.HexNumber, icult);
+					var g = int.Parse (s.Substring (2, 1), NumberStyles.HexNumber, icult);
+					var b = int.Parse (s.Substring (3, 1), NumberStyles.HexNumber, icult);
+					return new Color (r / 15.0, g / 15.0, b / 15.0, 1);
+				}
 			}
 
 			var match = rgbRe.Match(s);

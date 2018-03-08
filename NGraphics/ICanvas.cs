@@ -12,6 +12,8 @@ namespace NGraphics
 
 		TextMetrics MeasureText (string text, Font font);
 		void DrawText (string text, Rect frame, Font font, TextAlignment alignment = TextAlignment.Left, Pen pen = null, Brush brush = null);
+		void ClipRect (Rect frame);
+		void ClipPath (IEnumerable<PathOp> ops);
 		void DrawPath (IEnumerable<PathOp> ops, Pen pen = null, Brush brush = null);
 		void DrawRectangle (Rect frame, Size corner, Pen pen = null, Brush brush = null);
 		void DrawEllipse (Rect frame, Pen pen = null, Brush brush = null);

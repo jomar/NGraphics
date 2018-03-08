@@ -53,6 +53,12 @@ namespace NGraphics
 		{
 			Graphic.Children.Add (new Path (commands, pen, brush) { Transform = CurrentTransform, });
 		}
+		public void ClipRect (Rect frame)
+		{
+		}
+		public void ClipPath (IEnumerable<PathOp> commands)
+		{
+		}
 		public void DrawRectangle (Rect frame, Size corner, Pen pen = null, Brush brush = null)
 		{
 			Graphic.Children.Add (new Rectangle (frame, corner, pen, brush) { Transform = CurrentTransform, });

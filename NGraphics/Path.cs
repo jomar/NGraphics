@@ -18,7 +18,9 @@ namespace NGraphics
 		public void Accept (IPathOpVisitor visitor) {
 			AcceptVisitor (visitor);
 		}
+		public abstract bool AutoClose { get; }
 	}
+	
 	public class MoveTo : PathOp
 	{
 		public Point Point;
@@ -66,7 +68,10 @@ namespace NGraphics
 		{
 			return string.Format ("MoveTo ({0})", Point);
 		}
+		
+		public override bool AutoClose { get { return false; } }
 	}
+	
 	public class LineTo : PathOp
 	{
 		public Point Point;
@@ -109,11 +114,14 @@ namespace NGraphics
 			return point.DistanceToLineSegment (prevPoint, Point);
 		}
 
+		public override bool AutoClose { get { return true; } }
+		
 		public override string ToString ()
 		{
 			return string.Format ("LineTo ({0})", Point);
 		}
 	}
+	
 	public class ArcTo : PathOp
 	{
 		public Size Radius;
@@ -184,6 +192,8 @@ namespace NGraphics
 			throw new NotSupportedException ();
 		}
 
+		public override bool AutoClose { get { return true; } }
+		
 		public override string ToString ()
 		{
 			return string.Format ("ArcTo ({0})", Point);
@@ -257,6 +267,8 @@ namespace NGraphics
 			return edges [0].DistanceTo (point);
 		}
 
+		public override bool AutoClose { get { return false; } }
+		
 		public override string ToString ()
 		{
 			return string.Format ("CurveTo ({0})", Point);
@@ -264,9 +276,18 @@ namespace NGraphics
 	}
 	public class ClosePath : PathOp
 	{
+		Point endPoint;
 		protected override void AcceptVisitor (IPathOpVisitor visitor)
 		{
 			visitor.Visit (this);
+		}
+		public ClosePath()
+		{
+			endPoint = Point.Zero;
+		}
+		public ClosePath(Point endPoint)
+		{
+			this.endPoint = endPoint;
 		}
 		public override PathOp Clone ()
 		{
@@ -276,7 +297,7 @@ namespace NGraphics
 		{
 			throw new NotSupportedException ();
 		}
-		public override Point GetEndPoint (Point startPoint) { return startPoint; }
+		public override Point GetEndPoint(Point startPoint) { return endPoint; }
 		public override EdgeSamples[] GetEdgeSamples (Point startPoint, Point prevPoint, double tolerance, int minSamples, int maxSamples)
 		{
 			if (prevPoint.DistanceTo (startPoint) < tolerance) {
@@ -296,6 +317,8 @@ namespace NGraphics
 		{
 			return string.Format ("Close ()");
 		}
+		
+		public override bool AutoClose { get { return false; } }
 	}
 
 	public interface IPathOpVisitor
@@ -320,7 +343,9 @@ namespace NGraphics
 			: base (pen, brush)
 		{
 		}
-
+		
+		public Path ClipPath { get; set; }
+		
 		protected override void AcceptVisitor (IElementVisitor visitor)
 		{
 			visitor.Visit (this);
@@ -336,7 +361,14 @@ namespace NGraphics
 
 		protected override void DrawElement (ICanvas canvas)
 		{
+			if (ClipPath != null)
+			{
+				canvas.SaveState();
+				canvas.ClipPath(ClipPath.Operations);
+			}
 			canvas.DrawPath (Operations, Pen, Brush);
+			if (ClipPath != null)
+				canvas.RestoreState();
 		}
 
 		void Add (PathOp op)
@@ -391,7 +423,26 @@ namespace NGraphics
 
 		public void Close ()
 		{
-			Add (new ClosePath ());
+			Add (new ClosePath(GetCurrentPathStartPoint()));
+		}
+		
+		protected Point GetCurrentPathStartPoint()
+		{
+			PathOp previous = null;
+			foreach(var op in Operations.Reverse<PathOp>())
+			{
+				if (op is ClosePath)
+				{
+					if (previous is MoveTo)
+						break;
+					return op.EndPoint;
+				}
+				else
+					previous = op;
+			}
+			if (previous != null)
+				return previous.EndPoint;
+			return Point.Zero;
 		}
 
 		public override bool Contains (Point localPoint)

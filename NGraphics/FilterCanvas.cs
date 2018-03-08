@@ -55,6 +55,16 @@ namespace NGraphics
 			NextCanvas.DrawPath (ops, GetPen (pen), GetBrush (brush));
 		}
 
+		public virtual void ClipRect (Rect frame)
+		{
+			NextCanvas.ClipRect(frame);
+		}
+
+		public virtual void ClipPath (System.Collections.Generic.IEnumerable<PathOp> ops)
+		{
+			NextCanvas.ClipPath (ops);
+		}
+
 		public virtual void DrawRectangle (Rect frame, Size corner, Pen pen = null, Brush brush = null)
 		{
 			NextCanvas.DrawRectangle (frame, corner, GetPen (pen), GetBrush (brush));

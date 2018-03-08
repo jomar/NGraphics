@@ -383,92 +383,104 @@ namespace NGraphics
 		{
 			return !double.IsNaN (v) && !double.IsInfinity (v);
 		}
+		
+		Rect AddPathToContext(IEnumerable<PathOp> ops)
+		{
+			var bb = new BoundingBoxBuilder ();
+
+			foreach (var op in ops) {
+				var mt = op as MoveTo;
+				if (mt != null) {
+					var p = mt.Point;
+					if (!IsValid (p.X) || !IsValid (p.Y))
+						continue;
+					context.MoveTo ((nfloat)p.X, (nfloat)p.Y);
+					bb.Add (p);
+					continue;
+				}
+				var lt = op as LineTo;
+				if (lt != null) {
+					var p = lt.Point;
+					if (!IsValid (p.X) || !IsValid (p.Y))
+						continue;
+					context.AddLineToPoint ((nfloat)p.X, (nfloat)p.Y);
+					bb.Add (p);
+					continue;
+				}
+				var at = op as ArcTo;
+				if (at != null) {
+					var p = at.Point;
+					if (!IsValid (p.X) || !IsValid (p.Y))
+						continue;
+					var pp = Conversions.GetPoint (context.GetPathCurrentPoint ());
+					if (pp == p)
+						continue;
+					Point c1, c2;
+					at.GetCircles (pp, out c1, out c2);
+
+					var circleCenter = (at.LargeArc ^ at.SweepClockwise) ? c1 : c2;
+
+					var startAngle = (float)Math.Atan2(pp.Y - circleCenter.Y, pp.X - circleCenter.X);
+					var endAngle = (float)Math.Atan2(p.Y - circleCenter.Y, p.X - circleCenter.X);
+
+					if (!IsValid (circleCenter.X) || !IsValid (circleCenter.Y) || !IsValid (startAngle) || !IsValid (endAngle)) {
+						context.MoveTo ((nfloat)p.X, (nfloat)p.Y);
+						continue;
+					}
+
+					var clockwise = !at.SweepClockwise;
+
+					context.AddArc((nfloat)circleCenter.X, (nfloat)circleCenter.Y, (nfloat)at.Radius.Min, startAngle, endAngle, clockwise);
+
+					bb.Add (p);
+					continue;
+				}
+				var ct = op as CurveTo;
+				if (ct != null) {
+					var p = ct.Point;
+					if (!IsValid (p.X) || !IsValid (p.Y))
+						continue;
+					var c1 = ct.Control1;
+					var c2 = ct.Control2;
+					if (!IsValid (c1.X) || !IsValid (c1.Y) || !IsValid (c2.X) || !IsValid (c2.Y)) {
+						context.MoveTo ((nfloat)p.X, (nfloat)p.Y);
+						continue;
+					}
+					context.AddCurveToPoint ((nfloat)c1.X, (nfloat)c1.Y, (nfloat)c2.X, (nfloat)c2.Y, (nfloat)p.X, (nfloat)p.Y);
+					bb.Add (p);
+					bb.Add (c1);
+					bb.Add (c2);
+					continue;
+				}
+				var cp = op as ClosePath;
+				if (cp != null) {
+					context.ClosePath ();
+					continue;
+				}
+
+				throw new NotSupportedException ("Path Op " + op);
+			}
+
+			return bb.BoundingBox;
+		}
+		
+		public void ClipRect(Rect frame)
+		{
+			context.ClipToRect(Conversions.GetCGRect(frame));
+		}
+		
+		public void ClipPath (IEnumerable<PathOp> ops)
+		{
+			AddPathToContext(ops);
+			context.Clip();
+		}
 
 		public void DrawPath (IEnumerable<PathOp> ops, Pen pen = null, Brush brush = null)
 		{
 			if (pen == null && brush == null)
 				return;
 
-			DrawElement (() => {
-
-				var bb = new BoundingBoxBuilder ();
-
-				foreach (var op in ops) {
-					var mt = op as MoveTo;
-					if (mt != null) {
-						var p = mt.Point;
-						if (!IsValid (p.X) || !IsValid (p.Y))
-							continue;
-						context.MoveTo ((nfloat)p.X, (nfloat)p.Y);
-						bb.Add (p);
-						continue;
-					}
-					var lt = op as LineTo;
-					if (lt != null) {
-						var p = lt.Point;
-						if (!IsValid (p.X) || !IsValid (p.Y))
-							continue;
-						context.AddLineToPoint ((nfloat)p.X, (nfloat)p.Y);
-						bb.Add (p);
-						continue;
-					}
-					var at = op as ArcTo;
-					if (at != null) {
-						var p = at.Point;
-						if (!IsValid (p.X) || !IsValid (p.Y))
-							continue;
-						var pp = Conversions.GetPoint (context.GetPathCurrentPoint ());
-						if (pp == p)
-							continue;
-						Point c1, c2;
-						at.GetCircles (pp, out c1, out c2);
-
-						var circleCenter = (at.LargeArc ^ at.SweepClockwise) ? c1 : c2;
-
-						var startAngle = (float)Math.Atan2(pp.Y - circleCenter.Y, pp.X - circleCenter.X);
-						var endAngle = (float)Math.Atan2(p.Y - circleCenter.Y, p.X - circleCenter.X);
-
-						if (!IsValid (circleCenter.X) || !IsValid (circleCenter.Y) || !IsValid (startAngle) || !IsValid (endAngle)) {
-							context.MoveTo ((nfloat)p.X, (nfloat)p.Y);
-							continue;
-						}
-
-						var clockwise = !at.SweepClockwise;
-
-						context.AddArc((nfloat)circleCenter.X, (nfloat)circleCenter.Y, (nfloat)at.Radius.Min, startAngle, endAngle, clockwise);
-
-						bb.Add (p);
-						continue;
-					}
-					var ct = op as CurveTo;
-					if (ct != null) {
-						var p = ct.Point;
-						if (!IsValid (p.X) || !IsValid (p.Y))
-							continue;
-						var c1 = ct.Control1;
-						var c2 = ct.Control2;
-						if (!IsValid (c1.X) || !IsValid (c1.Y) || !IsValid (c2.X) || !IsValid (c2.Y)) {
-							context.MoveTo ((nfloat)p.X, (nfloat)p.Y);
-							continue;
-						}
-						context.AddCurveToPoint ((nfloat)c1.X, (nfloat)c1.Y, (nfloat)c2.X, (nfloat)c2.Y, (nfloat)p.X, (nfloat)p.Y);
-						bb.Add (p);
-						bb.Add (c1);
-						bb.Add (c2);
-						continue;
-					}
-					var cp = op as ClosePath;
-					if (cp != null) {
-						context.ClosePath ();
-						continue;
-					}
-
-					throw new NotSupportedException ("Path Op " + op);
-				}
-
-				return bb.BoundingBox;
-
-			}, pen, brush);
+			DrawElement (() => AddPathToContext(ops), pen, brush);
 		}
 
 		// http://stackoverflow.com/a/2835659/338
