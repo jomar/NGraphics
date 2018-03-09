@@ -402,6 +402,9 @@ namespace NGraphics
 
 		void ApplyStyle (string key, string value, ref Pen pen, out bool hasPen, ref Brush brush, out bool hasBrush)
 		{
+			hasBrush = false;
+			hasPen = false;
+			
 			//
 			// Pen attributes
 			//
@@ -409,6 +412,7 @@ namespace NGraphics
 			{
 				var strokeWidth = value;
 				if (!string.IsNullOrWhiteSpace (strokeWidth)) {
+					hasPen = true;
 					if (pen == null)
 						pen = new Pen ();
 					pen.Width = ReadNumber (strokeWidth);
@@ -417,6 +421,7 @@ namespace NGraphics
 
 			if (key.Equals("stroke-dasharray", StringComparison.OrdinalIgnoreCase))
 			{
+				hasPen = true;
 				var values = value.Split(new [] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
 				var dashes = new List<float>();
 				foreach(var v in values)
@@ -428,6 +433,7 @@ namespace NGraphics
 
 			if (key.Equals("stroke-opacity", StringComparison.OrdinalIgnoreCase))
 			{
+				hasPen = true;
 				var strokeOpacity = value;
 				if (!string.IsNullOrWhiteSpace (strokeOpacity)) {
 					if (pen == null)
@@ -438,6 +444,7 @@ namespace NGraphics
 
 			if (key.Equals("stroke-linecap", StringComparison.OrdinalIgnoreCase))
 			{
+				hasPen = true;
 				if (pen == null)
 					pen = new Pen();
 				if (string.Equals(value, "butt"))
@@ -450,6 +457,7 @@ namespace NGraphics
 
 			if (key.Equals("stroke-linejoin", StringComparison.OrdinalIgnoreCase))
 			{
+				hasPen = true;
 				if (pen == null)
 					pen = new Pen();
 				if (string.Equals(value, "miter"))
@@ -466,25 +474,21 @@ namespace NGraphics
 			if (key.Equals("stroke", StringComparison.OrdinalIgnoreCase))
 			{
 				var stroke = value.Trim ();
-				if (string.IsNullOrEmpty (stroke)) {
-					// No change
-					hasPen = false;
-				} else if (stroke.Equals("none", StringComparison.OrdinalIgnoreCase)) {
+				if (!string.IsNullOrEmpty (stroke)) {
 					hasPen = true;
-					pen = null;
-				} else {
-					hasPen = true;
-					if (pen == null)
-						pen = new Pen ();
-					Color color = ReadColor(stroke);
-					if (pen.Color.Alpha == 1)
-						pen.Color = color;
-					else
-						pen.Color = color.WithAlpha (pen.Color.Alpha);
+					if (stroke.Equals("none", StringComparison.OrdinalIgnoreCase)) {
+						pen = null;
+					} else {
+						if (pen == null)
+							pen = new Pen ();
+						Color color = ReadColor(stroke);
+						if (pen.Color.Alpha == 1)
+							pen.Color = color;
+						else
+							pen.Color = color.WithAlpha (pen.Color.Alpha);
+					}
 				}
 			}
-			else
-				hasPen = false;
 
 			//
 			// Brush attributes
@@ -493,6 +497,7 @@ namespace NGraphics
 			{
 				var fillOpacity = value;
 				if (!string.IsNullOrWhiteSpace (fillOpacity)) {
+					hasBrush = true;
 					if (brush == null)
 						brush = new SolidBrush ();
 					var sb = brush as SolidBrush;
@@ -505,12 +510,14 @@ namespace NGraphics
 			{
 				var opacity = value;
 				if (!string.IsNullOrWhiteSpace (opacity)) {
+					hasBrush = true;
 					if (brush == null)
 						brush = new SolidBrush ();
 					var sb = brush as SolidBrush;
 					if (sb != null)
 						sb.Color = sb.Color.WithAlpha (ReadNumber (opacity));
 
+					hasPen = true;
 					if (pen == null)
 						pen = new Pen();
 					pen.Color = pen.Color.WithAlpha(ReadNumber(opacity));
@@ -523,35 +530,30 @@ namespace NGraphics
 			if (key.Equals("fill", StringComparison.OrdinalIgnoreCase))
 			{
 				var fill = value.Trim ();
-				if (string.IsNullOrEmpty (fill)) {
-					// No change
-					hasBrush = false;
-				} else if (fill.Equals("none", StringComparison.OrdinalIgnoreCase)) {
+				if (!string.IsNullOrEmpty (fill)) {
 					hasBrush = true;
-					brush = null;
-				} else {
-					hasBrush = true;
-					
-					var urlM = definitionUrlRe.Match (fill);
-					if (urlM.Success) {
-						var id = urlM.Groups [1].Value.Trim ();
-						brush = GetGradientBrush(id, null);
+					if (fill.Equals("none", StringComparison.OrdinalIgnoreCase)) {
+						brush = null;
 					} else {
-						Color color = ReadColor(fill);
-						var sb = brush as SolidBrush;
-						if (sb == null) {
-							brush = new SolidBrush (color);
+						var urlM = definitionUrlRe.Match (fill);
+						if (urlM.Success) {
+							var id = urlM.Groups [1].Value.Trim ();
+							brush = GetGradientBrush(id, null);
 						} else {
-							if (sb.Color.Alpha == 1)
-								sb.Color = color;
-							else
-								sb.Color = color.WithAlpha (sb.Color.Alpha);
+							Color color = ReadColor(fill);
+							var sb = brush as SolidBrush;
+							if (sb == null) {
+								brush = new SolidBrush (color);
+							} else {
+								if (sb.Color.Alpha == 1)
+									sb.Color = color;
+								else
+									sb.Color = color.WithAlpha (sb.Color.Alpha);
+							}
 						}
 					}
 				}
 			}
-			else
-				hasBrush = false;
 		}
 		
 		protected Path GetClipPath(string id)
