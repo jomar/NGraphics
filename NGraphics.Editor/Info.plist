@@ -14,12 +14,14 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>com.microsoft.csharp-source</string>
+				<string>public.svg-image</string>
 			</array>
 			<key>LSHandlerRank</key>
 			<string>Alternate</string>
 			<key>CFBundleTypeExtensions</key>
 			<array>
 				<string>cs</string>
+				<string>svg</string>
 			</array>
 		</dict>
 	</array>
