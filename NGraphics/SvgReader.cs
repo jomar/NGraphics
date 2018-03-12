@@ -730,22 +730,26 @@ namespace NGraphics
 		
 		string[] GetPathArguments(string input)
 		{
-			// make sure negative numbers are split properly
-			var cleanedString = negativeNumberRe.Replace(input.Substring(1), " -");
-			var args = cleanedString.Split(WSC, StringSplitOptions.RemoveEmptyEntries);
-			
 			var retval = new List<string>();
-			// handle chained decimals: .123.321.456
-			foreach(var arg in args)
+			
+			if (!string.IsNullOrEmpty(input))
 			{
-				var firstDotIndex = arg.IndexOf('.');
-				if (firstDotIndex != -1 && firstDotIndex != arg.LastIndexOf('.'))
+				// make sure negative numbers are split properly
+				var cleanedString = negativeNumberRe.Replace(input.Substring(1).Trim(), " -");
+				var args = cleanedString.Split(WSC, StringSplitOptions.RemoveEmptyEntries);
+				
+				// handle chained decimals: .123.321.456
+				foreach(var arg in args)
 				{
-					var changedDecimals = chainedDecimalsRe.Replace(arg, (m) => " .", int.MaxValue, firstDotIndex+1);
-					retval.AddRange(changedDecimals.Split(new [] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+					var firstDotIndex = arg.IndexOf('.');
+					if (firstDotIndex != -1 && firstDotIndex != arg.LastIndexOf('.'))
+					{
+						var changedDecimals = chainedDecimalsRe.Replace(arg, (m) => " .", int.MaxValue, firstDotIndex+1);
+						retval.AddRange(changedDecimals.Split(new [] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+					}
+					else
+						retval.Add(arg);
 				}
-				else
-					retval.Add(arg);
 			}
 			
 			return retval.ToArray();
