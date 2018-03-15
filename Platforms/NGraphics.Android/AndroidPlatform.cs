@@ -211,9 +211,33 @@ namespace NGraphics
                 var dashPathEffect = new DashPathEffect(pen.DashPattern.ToArray(), 0);
                 paint.SetPathEffect(dashPathEffect);
             }
+            paint.StrokeJoin = GetStrokeJoin(pen.StrokeLineJoin);
+            paint.StrokeCap = GetStrokeCap(pen.StrokeLineCap);
 
 			return paint;
 		}
+		
+		Paint.Join GetStrokeJoin(Pen.LineJoin join)
+		{
+			if (join == Pen.LineJoin.Bevel)
+				return Paint.Join.Bevel;
+			else if (join == Pen.LineJoin.Miter)
+				return Paint.Join.Miter;
+			else
+				return Paint.Join.Round;
+		}
+
+		Paint.Cap GetStrokeCap(Pen.LineCap cap)
+		{
+			if (cap == Pen.LineCap.Square)
+				return Paint.Cap.Square;
+			else if (cap == Pen.LineCap.Butt)
+				return Paint.Cap.Butt;
+			else
+				return Paint.Cap.Round;
+		}
+
+		
 		Paint GetBrushPaint (Brush brush, Rect frame)
 		{
 			var paint = new Paint (PaintFlags.AntiAlias);
