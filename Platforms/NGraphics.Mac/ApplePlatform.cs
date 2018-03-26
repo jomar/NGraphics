@@ -541,11 +541,11 @@ namespace NGraphics
 
 		CGPathDrawingMode SetPenAndBrush (Pen pen, Brush brush)
 		{
-			var mode = CGPathDrawingMode.EOFill;
+			var mode = CGPathDrawingMode.Fill;
 			if (brush != null) {
 				SetBrush (brush);
 				if (pen != null)
-					mode = CGPathDrawingMode.EOFillStroke;
+					mode = CGPathDrawingMode.FillStroke;
 			}
 			if (pen != null) {
 				SetPen (pen);
