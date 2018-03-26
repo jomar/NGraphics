@@ -230,6 +230,18 @@ namespace NGraphics
 							var useList = new List<Element> ();
 							AddElement (useList, useE, pen, brush);
 							r = useList.FirstOrDefault ();
+							if (r != null)
+							{
+								var xTransform = e.Attribute ("x");
+								var yTransform = e.Attribute ("y");
+								if (xTransform != null || yTransform != null)
+								{
+									r.Transform *= Transform.Translate(
+										xTransform != null ? ReadNumber(xTransform.Value) : 0, 
+										yTransform != null ? ReadNumber(yTransform.Value) : 0
+									);
+								}
+							}
 						}
 					}
 				}
@@ -308,7 +320,7 @@ namespace NGraphics
 			}
 
 			if (r != null) {
-				r.Transform = ReadTransform (ReadString (e.Attribute ("transform")));
+				r.Transform *= ReadTransform (ReadString (e.Attribute ("transform")));
 				var ida = e.Attribute("id");
 				if (ida != null && !string.IsNullOrEmpty (ida.Value)) {
 					r.Id = ida.Value.Trim ();
@@ -778,6 +790,9 @@ namespace NGraphics
 								point += previousPoint;
 							p.MoveTo (point);
 							index += 2;
+							// subsequent coordinates are threated as lineto
+							if (args.Length >= index)
+								op = op == 'M' ? 'L' : 'l';
 						} else if ((op == 'L' || op == 'l') && args.Length >= index+2) {
 							var point = new Point (ReadNumber (args [index]), ReadNumber (args [index+1]));
 							if (op == 'l')
