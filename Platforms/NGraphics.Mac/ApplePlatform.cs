@@ -307,24 +307,15 @@ namespace NGraphics
 						pt.X = frame.X;
 						break;
 					case TextAlignment.Center:
-						pt.X = frame.X + (frame.Width - len) / 2;
+						pt.X = frame.X - len / 2;
 						break;
 					case TextAlignment.Right:
-						pt.X = frame.Right - len;
+						pt.X = frame.X - len;
 						break;
 					}
 
 					context.SaveState ();
-					if (alignment == TextAlignment.Left)
-						context.TranslateCTM ((nfloat)(pt.X), (nfloat)(pt.Y));
-					else {
-						var width = l.GetTypographicBounds (out asc, out desc, out lead);
-
-						if (alignment == TextAlignment.Right)
-							context.TranslateCTM ((nfloat)(pt.X-width), (nfloat)(pt.Y));
-						else
-							context.TranslateCTM ((nfloat)(pt.X - width /2), (nfloat)(pt.Y));
-					}
+					context.TranslateCTM ((nfloat)(pt.X), (nfloat)(pt.Y));
 					context.TextPosition = CGPoint.Empty;
 					l.Draw (context);
 					context.RestoreState ();
