@@ -334,15 +334,7 @@ namespace NGraphics
 			var fm = paint.GetFontMetrics ();
 			var h = fm.Ascent + fm.Descent;
 			var point = frame.TopLeft;
-			switch (alignment)
-			{
-				case TextAlignment.Center:
-					point.X -= w / 2;
-					break;
-				case TextAlignment.Right:
-					point.X -= w;
-					break;
-			}
+			
 			var fr = new Rect (point, new Size (w, h));
 			AddBrushPaint (paint, brush, fr);
 			graphics.DrawText (text, (float)point.X, (float)point.Y, paint);
