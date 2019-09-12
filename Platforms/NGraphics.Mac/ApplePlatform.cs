@@ -420,30 +420,10 @@ namespace NGraphics
 						context.MoveTo ((nfloat)p.X, (nfloat)p.Y);
 						continue;
 					}
-					var at = op as ArcTo;
-					if (at != null) {
-						var p = at.Point;
-						if (!IsValid (p.X) || !IsValid (p.Y))
-							continue;
-						var pp = Conversions.GetPoint (context.GetPathCurrentPoint ());
-						if (pp == p)
-							continue;
-						Point c1, c2;
-						at.GetCircles (pp, out c1, out c2);
-
-						var circleCenter = (at.LargeArc ^ at.SweepClockwise) ? c1 : c2;
-
-						var startAngle = (float)Math.Atan2 (pp.Y - circleCenter.Y, pp.X - circleCenter.X);
-						var endAngle = (float)Math.Atan2 (p.Y - circleCenter.Y, p.X - circleCenter.X);
-
-						if (!IsValid (circleCenter.X) || !IsValid (circleCenter.Y) || !IsValid (startAngle) || !IsValid (endAngle)) {
-							context.MoveTo ((nfloat)p.X, (nfloat)p.Y);
-							continue;
-						}
 
 					var clockwise = !at.SweepClockwise;
 
-						context.AddArc ((nfloat)circleCenter.X, (nfloat)circleCenter.Y, (nfloat)at.Radius.Min, startAngle, endAngle, clockwise);
+					context.AddArc ((nfloat)circleCenter.X, (nfloat)circleCenter.Y, (nfloat)at.Radius.Min, startAngle, endAngle, clockwise);
 
 					bb.Add (p);
 					continue;
