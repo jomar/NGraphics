@@ -19,13 +19,20 @@ namespace NGraphics
 		readonly Dictionary<string, XElement> defs = new Dictionary<string, XElement> ();
 //		readonly XNamespace ns;
 
-		public SvgReader (System.IO.TextReader reader, double pixelsPerInch = 160.0)
+		public SvgReader (System.IO.TextReader reader, double pixelsPerInch = 160.0, Brush defaultBrush = null)
 		{
+			defaultBrush = defaultBrush ?? Brushes.Black;
 			PixelsPerInch = pixelsPerInch;
-			Read (XDocument.Load (reader));
+			Read (XDocument.Load (reader), defaultBrush);
 		}
 
-		void Read (XDocument doc)
+		public SvgReader (string svgString, double pixelsPerInch = 160.0, Brush defaultBrush = null)
+		{
+			PixelsPerInch = pixelsPerInch;
+			Read (XDocument.Parse(svgString), defaultBrush);
+		}
+
+		void Read (XDocument doc, Brush defaultBrush)
 		{
 			var svg = doc.Root;
 			var ns = svg.Name.Namespace;
@@ -71,7 +78,7 @@ namespace NGraphics
 			//
 			Graphic = new Graphic (size, viewBox);
 
-			AddElements (Graphic.Children, svg.Elements (), null, Brushes.Black);
+			AddElements (Graphic.Children, svg.Elements (), null, defaultBrush);
 		}
 
 		void AddElements (IList<Element> list, IEnumerable<XElement> es, Pen inheritPen, Brush inheritBrush)
@@ -80,23 +87,18 @@ namespace NGraphics
 				AddElement (list, e, inheritPen, inheritBrush);
 		}
 
-		protected List<XAttribute> FlattenStyleAttributes(IEnumerable<XAttribute> attributes)
+		void GetPenAndBrush (XElement e, Pen inheritPen, Brush inheritBrush, out Pen pen, out Brush brush)
 		{
-			List<XAttribute> retval = null;
-			if (attributes != null)
-			{
-				retval = new List<XAttribute>();
-				foreach(var attribute in attributes)
-				{
-					if (attribute.Name.LocalName.Equals("style", StringComparison.OrdinalIgnoreCase))
-					{
-						retval.AddRange(FlattenStyleAttributes(GetStyleAttributes(attribute.Value)));
-					}
-					else
-						retval.Add(attribute);
-				}
+			bool hasPen, hasBrush;
+			pen = null;
+			brush = null;
+			ApplyStyle (e.Attributes().ToDictionary(k => k.Name.LocalName, v => v.Value), ref pen, out hasPen, ref brush, out hasBrush);
+			var style = ReadString (e.Attribute("style"));
+			if (!string.IsNullOrWhiteSpace(style)) {
+				ApplyStyle(style, ref pen, out hasPen, ref brush, out hasBrush);
 			}
-			return retval;
+			pen = hasPen ? pen : inheritPen;
+			brush = hasBrush ? brush : inheritBrush;
 		}
 
 		void AddElement (IList<Element> list, XElement e, Pen inheritPen, Brush inheritBrush)
@@ -105,15 +107,7 @@ namespace NGraphics
 			// Style
 			//
 			Element r = null;
-			Pen pen = null;
-			Brush brush = null;
-			bool hasPen, hasBrush;
-
-			var styles = FlattenStyleAttributes(e.Attributes ());
-			ApplyStyle (styles, ref pen, out hasPen, ref brush, out hasBrush);
-
-			pen = hasPen ? pen : inheritPen;
-			brush = hasBrush ? brush : inheritBrush;
+			GetPenAndBrush (e, inheritPen, inheritBrush, out var pen, out var brush);
 			//var id = ReadString (e.Attribute ("id"));
 
 			//
@@ -134,7 +128,7 @@ namespace NGraphics
 
 					TextAlignment textAlignment = ReadTextAlignment(e, TextAlignment.Left);
 					var txt = new Text (new Rect (new Point (x, y), new Size (double.MaxValue, double.MaxValue)), font, textAlignment, pen, brush);
-					ReadTextSpans (txt, e);
+					ReadTextSpans (txt, e, pen, brush);
 					r = txt;
 				}
 				break;
@@ -689,15 +683,19 @@ namespace NGraphics
 			return t;
 		}
 
-		void ReadTextSpans (Text txt, XElement e)
+		void ReadTextSpans (Text txt, XElement e, Pen inheritPen, Brush inheritBrush)
 		{
 			foreach (XNode c in e.Nodes ()) {
 				if (c.NodeType == XmlNodeType.Text) {
-					txt.Spans.Add (new TextSpan (((XText)c).Value));
+					txt.Spans.Add (new TextSpan (((XText)c).Value) {
+						Pen = inheritPen,
+						Brush = inheritBrush
+					});
 				} else if (c.NodeType == XmlNodeType.Element) {
 					var ce = (XElement)c;
 					if (ce.Name.LocalName == "tspan") {
 						var tspan = new TextSpan (ce.Value);
+						GetPenAndBrush (ce, inheritPen, inheritBrush, out tspan.Pen, out tspan.Brush);
 						var x = ReadOptionalNumber (ce.Attribute ("x"));
 						var y = ReadOptionalNumber (ce.Attribute ("y"));
 						if (x.HasValue && y.HasValue) {
@@ -736,37 +734,34 @@ namespace NGraphics
 
 		static readonly char[] WSC = new char[] { ',', ' ', '\t', '\n', '\r' };
 
-		static Regex pathRegex = new Regex(@"[MLHVCSQTAZmlhvcsqtaz][^MLHVCSQTAZmlhvcsqtaz]*", RegexOptions.Singleline);
-		static Regex negativeNumberRe = new Regex("(?<=[0-9])-");
-		static Regex chainedDecimalsRe = new Regex("(?<=[0-9])\\.(?=[0-9])");
-		
-		string[] GetPathArguments(string input)
+		string[] GetPathArguments (string input)
 		{
-			var retval = new List<string>();
-			
-			if (!string.IsNullOrEmpty(input))
-			{
+			var retval = new List<string> ();
+
+			if (!string.IsNullOrEmpty (input)) {
 				// make sure negative numbers are split properly
-				var cleanedString = negativeNumberRe.Replace(input.Substring(1).Trim(), " -");
-				var args = cleanedString.Split(WSC, StringSplitOptions.RemoveEmptyEntries);
-				
+				var cleanedString = negativeNumberRe.Replace (input.Substring (1).Trim (), " -");
+				var args = cleanedString.Split (WSC, StringSplitOptions.RemoveEmptyEntries);
+
 				// handle chained decimals: .123.321.456
-				foreach(var arg in args)
-				{
-					var firstDotIndex = arg.IndexOf('.');
-					if (firstDotIndex != -1 && firstDotIndex != arg.LastIndexOf('.'))
-					{
-						var changedDecimals = chainedDecimalsRe.Replace(arg, (m) => " .", int.MaxValue, firstDotIndex+1);
-						retval.AddRange(changedDecimals.Split(new [] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+				foreach (var arg in args) {
+					var firstDotIndex = arg.IndexOf ('.');
+					if (firstDotIndex != -1 && firstDotIndex != arg.LastIndexOf ('.')) {
+						var changedDecimals = chainedDecimalsRe.Replace (arg, (m) => " .", int.MaxValue, firstDotIndex + 1);
+						retval.AddRange (changedDecimals.Split (new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
 					}
 					else
-						retval.Add(arg);
+						retval.Add (arg);
 				}
 			}
-			
-			return retval.ToArray();
+
+			return retval.ToArray ();
 		}
 
+		static readonly Regex pathRegex = new Regex(@"[MLHVCSQTAZmlhvcsqtaz][^MLHVCSQTAZmlhvcsqtaz]*", RegexOptions.Singleline);
+		static readonly Regex negativeNumberRe = new Regex("(?<=[0-9])-");
+		static readonly Regex chainedDecimalsRe = new Regex("(?<=[0-9])\\.(?=[0-9])");
+		
 		void ReadPath (Path p, string pathDescriptor)
 		{
 			Match m = pathRegex.Match(pathDescriptor);

@@ -39,8 +39,8 @@
 	<key>XSAppIconAssets</key>
 	<string>Resources/Images.xcassets/AppIcons.appiconset</string>
 	<key>CFBundleName</key>
-	<string>NGraphics.iOS.Test</string>
+	<string>NGraphics Test</string>
 	<key>CFBundleIdentifier</key>
-	<string>NGraphics.iOS.Test</string>
+	<string>com.kruegersystems.ngraphics.ios.test</string>
 </dict>
 </plist>

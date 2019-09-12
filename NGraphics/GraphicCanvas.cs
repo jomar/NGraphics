@@ -7,15 +7,19 @@ namespace NGraphics
 	public class GraphicCanvas : ICanvas
 	{
 		readonly Stack<NGraphics.Transform> states = new Stack<NGraphics.Transform> ();
+		readonly IPlatform textPlatform;
 
 		public Graphic Graphic { get; private set; }
 
-		public IPlatform TextPlatform { get; set; }
+		public GraphicCanvas ()
+			: this (new Size (0, 0), textPlatform: null)
+		{
+		}
 
-		public GraphicCanvas (Size size, IPlatform textPlatform)
+		public GraphicCanvas (Size size, IPlatform textPlatform = null)
 		{
 			states.Push (NGraphics.Transform.Identity);
-			TextPlatform = textPlatform;
+			this.textPlatform = textPlatform ?? new NullPlatform ();
 			Graphic = new Graphic (size);
 		}
 
@@ -43,7 +47,7 @@ namespace NGraphics
 		}
 		public TextMetrics MeasureText (string text, Font font)
 		{
-			return TextPlatform.MeasureText (text, font);
+			return textPlatform.MeasureText (text, font);
 		}
 		public void DrawText (string text, Rect frame, Font font, TextAlignment alignment = TextAlignment.Left, Pen pen = null, Brush brush = null)
 		{

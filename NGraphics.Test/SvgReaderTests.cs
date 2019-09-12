@@ -15,10 +15,10 @@ namespace NGraphics.Test
 	[TestFixture]
 	public class SvgReaderTests : PlatformTest
 	{
-		Graphic Read (string path)
+		Graphic Read (string path, Brush defaultBrush = null)
 		{
 			using (var s = OpenResource (path)) {
-				var r = new SvgReader (new StreamReader (s));
+				var r = new SvgReader (new StreamReader (s), defaultBrush: defaultBrush);
 				Assert.IsTrue (r.Graphic.Children.Count >= 0);
 				Assert.IsTrue (r.Graphic.Size.Width > 1);
 				Assert.IsTrue (r.Graphic.Size.Height > 1);
@@ -26,16 +26,16 @@ namespace NGraphics.Test
 			}
 		}
 
-		Graphic ReadString (string svg)
+		Graphic ReadString (string svg, Brush defaultBrush = null)
 		{
-			var r = new SvgReader (new StringReader (svg));
+			var r = new SvgReader (svg, defaultBrush: defaultBrush);
 			Assert.IsTrue (r.Graphic.Children.Count >= 0);
 			return r.Graphic;
 		}
 
-		async Task ReadAndDraw (string path)
+		async Task ReadAndDraw (string path, Brush defaultBrush = null)
 		{
-			var g = Read (path);
+			var g = Read (path, defaultBrush);
 
 			//
 			// Draw Image
@@ -57,6 +57,13 @@ namespace NGraphics.Test
 			Assert.AreEqual (4, p.Operations.Count);
 			var m = p.Operations[3];
 			Assert.AreEqual (new Point (103, 104), m.EndPoint);
+		}
+
+		[Test]
+		public async Task Find ()
+		{
+			// Issue #91
+			await ReadAndDraw ("find.svg");
 		}
 
 		[Test]
@@ -165,6 +172,19 @@ namespace NGraphics.Test
 		public async Task GroupOpacity ()
 		{
 			await ReadAndDraw ("GroupOpacity.svg");
+		}
+
+		[Test]
+		public void ReadPathWithoutWhite_Issue77 ()
+		{
+			var svg = @"
+			<svg xmlns=""http://www.w3.org/2000/svg"" width=""48"" height=""48"" viewBox=""0 0 48 48"">
+	<path d=""M13.25 21.59c2.88 5.66 7.51 10.29 13.18 13.17l4.4-4.41c.55-.55 1.34-.71 2.03-.49C35.1 30.6 37.51 31 40 31c1.11 0 2 .89 2 2v7c0 1.11-.89 2-2 2C21.22 42 6 26.78 6 8c0-1.11.9-2 2-2h7c1.11 0 2 .89 2 2 0 2.49.4 4.9 1.14 7.14.22.69.06 1.48-.49 2.03l-4.4 4.42z"" fill=""#000000"" fill-opacity=""0.54"" />
+</svg>";
+			var g = ReadString (svg);
+			Assert.AreEqual (1, g.Children.Count);
+			Assert.IsTrue (g.Children[0] is Path);
+			Assert.AreEqual (16, ((Path)g.Children[0]).Operations.Count);
 		}
 	}
 }
