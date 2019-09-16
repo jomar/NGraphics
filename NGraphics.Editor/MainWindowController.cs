@@ -36,6 +36,7 @@ namespace NGraphics.Editor
 			Editor.AutomaticQuoteSubstitutionEnabled = false;
 			Editor.AutomaticSpellingCorrectionEnabled = false;
 			Editor.AutomaticTextReplacementEnabled = false;
+			Editor.InsertionPointColor = NSColor.Black;
 
 
 			Prev.ImageRenderedDelegate = () => {

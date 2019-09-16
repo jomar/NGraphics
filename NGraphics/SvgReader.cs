@@ -394,13 +394,13 @@ namespace NGraphics
 
 		void ApplyStyle (Dictionary<string, string> styles, ref Pen pen, out bool hasPen, ref Brush brush, out bool hasBrush)
 		{
-			bool localHasPen = false;
+			bool localHasPen;
 			hasPen = false;
-			bool localHasBrush = false;
+			bool localHasBrush;
 			hasBrush = false;
 			foreach(var k in styles.Keys)
 			{
-				ApplyStyle(k, styles[k], ref pen, out hasPen, ref brush, out hasBrush);
+				ApplyStyle(k, styles[k], ref pen, out localHasPen, ref brush, out localHasBrush);
 				hasPen |= localHasPen;
 				hasBrush |= localHasBrush;
 			}
