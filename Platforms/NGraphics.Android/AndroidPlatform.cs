@@ -431,7 +431,7 @@ namespace NGraphics
 						sweepAngle -= 360.0f;
 					}
 
-					path.AddArc(Conversions.GetRectF(rect), startAngle, sweepAngle);
+					path.ArcTo(Conversions.GetRectF(rect), startAngle, sweepAngle);
 
 					bb.Add (p);
 					prevPoint = p;
