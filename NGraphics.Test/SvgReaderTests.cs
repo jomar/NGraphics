@@ -9,16 +9,19 @@ using System.IO;
 using System;
 using System.Reflection;
 using System.Threading.Tasks;
+using System.Runtime.CompilerServices;
 
 namespace NGraphics.Test
 {
 	[TestFixture]
 	public class SvgReaderTests : PlatformTest
 	{
-		Graphic Read (string path, Brush defaultBrush = null)
+		Graphic Read (string path, Brush defaultBrush = null, Font defaultFont = null)
 		{
 			using (var s = OpenResource (path)) {
-				var r = new SvgReader (new StreamReader (s), defaultBrush: defaultBrush);
+				var r = new SvgReader (new StreamReader (s), defaultBrush: defaultBrush, defaultFont: defaultFont);
+				if (r.Errors.Count > 0)
+					throw new Exception ("Error while reading", r.Errors[0]);
 				Assert.IsTrue (r.Graphic.Children.Count >= 0);
 				Assert.IsTrue (r.Graphic.Size.Width > 1);
 				Assert.IsTrue (r.Graphic.Size.Height > 1);
@@ -26,10 +29,15 @@ namespace NGraphics.Test
 			}
 		}
 
-		Graphic ReadString (string svg, Brush defaultBrush = null)
+		Graphic ReadString (string svg, Brush defaultBrush = null, Font defaultFont = null)
 		{
-			var r = new SvgReader (svg, defaultBrush: defaultBrush);
+			var r = new SvgReader (svg, defaultBrush: defaultBrush, defaultFont: defaultFont);
 			Assert.IsTrue (r.Graphic.Children.Count >= 0);
+			if (r.Errors.Count > 0)
+				throw new Exception ("Error while reading", r.Errors[0]);
+			Assert.IsTrue (r.Graphic.Children.Count >= 0);
+			Assert.IsTrue (r.Graphic.Size.Width > 1);
+			Assert.IsTrue (r.Graphic.Size.Height > 1);
 			return r.Graphic;
 		}
 
@@ -37,6 +45,18 @@ namespace NGraphics.Test
 		{
 			var g = Read (path, defaultBrush);
 
+			await Draw (g, path);
+		}
+
+		async Task ParseAndDraw (string svg, Brush defaultBrush = null, [CallerMemberName] string path = "")
+		{
+			var g = ReadString (svg, defaultBrush);
+
+			await Draw (g, path);
+		}
+
+		async Task Draw (Graphic g, string path)
+		{
 			//
 			// Draw Image
 			//
@@ -52,7 +72,7 @@ namespace NGraphics.Test
 		[Test]
 		public void RelativeMoveAfterClose ()
 		{
-			var g = ReadString ("<svg><path d=\"M1,2L3,4zm100,100\"/></svg>");
+			var g = ReadString ("<svg width=\"100\" height=\"100\"><path d=\"M1,2L3,4zm100,100\"/></svg>");
 			var p = (Path)g.Children[0];
 			Assert.AreEqual (4, p.Operations.Count);
 			var m = p.Operations[3];
@@ -184,7 +204,91 @@ namespace NGraphics.Test
 			var g = ReadString (svg);
 			Assert.AreEqual (1, g.Children.Count);
 			Assert.IsTrue (g.Children[0] is Path);
-			Assert.AreEqual (16, ((Path)g.Children[0]).Operations.Count);
+			Assert.AreEqual (15, ((Path)g.Children[0]).Operations.Count);
+		}
+
+		[Test]
+		public async Task Meadow ()
+		{
+			await ReadAndDraw ("svg.breadboard.Meadow_F7_1_breadboard.svg");
+		}
+
+		[Test]
+		public async Task Esp8266 ()
+		{
+			await ReadAndDraw ("svg.breadboard.ESP8266_module_13fc2bf6ea91d25866a134b8e6233ba0_3_breadboard.svg");
+		}
+
+		[Test]
+		public async Task Motor ()
+		{
+			await ReadAndDraw ("svg.breadboard.case_fan_b91be6f230a6ad10b8c5448478f5b4dc_1_breadboard.svg");
+		}
+
+		[Test]
+		public async Task Issue103 ()
+		{
+			await ParseAndDraw (@"<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 160 160"">
+	<path d=""M152.042,146.481c3.63,0,5.7-4.131,4.148-7.229L84.114,15.324a4.865,4.865,0,0,0-8.3,0L3.742,139.25c-2.074,3.1.519,7.229,4.148,7.229Z"" stroke=""#F00"" fill=""#FCC""/>
+</svg>");
+		}
+
+		[Test]
+		public async Task Issue103Bad ()
+		{
+			await ParseAndDraw (@"<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 160 160"">
+	<path d=""M26.56, 80L80, 26.56L133.44, 80l - 9.69, 9.38L86.56, 52.19v81.25H73.44V52.19l - 37.5, 37.19L26.56, 80z"" stroke=""#F00"" fill=""#FCC""/>
+</svg>");
+		}
+
+		[Test]
+		public async Task Issue103Good ()
+		{
+			await ParseAndDraw (@"<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 160 160"">
+	<path d=""M26.56,80,80,26.56,133.44,80l-9.69,9.37L86.56,52.19v81.25H73.44V52.19L35.94,89.38Z"" stroke=""#F00"" fill=""#FCC""/>
+</svg>");
+		}
+
+		[Test]
+		public void OverrideFont ()
+		{
+			var newFont = new Font ("Crazy Font", 42);
+			var dg = ReadString (@"<svg viewBox=""0 0 160 160""><text>Hello</text></svg>");
+			var og = ReadString (@"<svg viewBox=""0 0 160 160""><text>Hello</text></svg>", defaultFont: newFont);
+			var dt = (Text)dg.Children[0];
+			var ot = (Text)og.Children[0];
+			Assert.AreEqual (new Font().Family, dt.Font.Family);
+			Assert.AreEqual (new Font ().Size, dt.Font.Size);
+			Assert.AreEqual (newFont.Family, ot.Font.Family);
+			Assert.AreEqual (newFont.Size, ot.Font.Size);
+		}
+
+		[Test]
+		public void OverrideFontFromGraphic ()
+		{
+			var newFont = new Font ("Crazy Font", 42);
+			var dg = Graphic.ParseSvg (@"<svg viewBox=""0 0 160 160""><text>Hello</text></svg>");
+			var og = Graphic.ParseSvg (@"<svg viewBox=""0 0 160 160""><text>Hello</text></svg>", defaultFont: newFont);
+			var dt = (Text)dg.Children[0];
+			var ot = (Text)og.Children[0];
+			Assert.AreEqual (new Font ().Family, dt.Font.Family);
+			Assert.AreEqual (new Font ().Size, dt.Font.Size);
+			Assert.AreEqual (newFont.Family, ot.Font.Family);
+			Assert.AreEqual (newFont.Size, ot.Font.Size);
+		}
+
+		[Test]
+		public void PartialOverrideFontFromGraphic ()
+		{
+			var newFont = new Font ("Crazy Font", 42);
+			var dg = Graphic.ParseSvg (@"<svg viewBox=""0 0 160 160""><text font-family=""FooFam"">Hello</text></svg>");
+			var og = Graphic.ParseSvg (@"<svg viewBox=""0 0 160 160""><text font-family=""FooFam"">Hello</text></svg>", defaultFont: newFont);
+			var dt = (Text)dg.Children[0];
+			var ot = (Text)og.Children[0];
+			Assert.AreEqual ("FooFam", dt.Font.Family);
+			Assert.AreEqual (new Font ().Size, dt.Font.Size);
+			Assert.AreEqual ("FooFam", ot.Font.Family);
+			Assert.AreEqual (newFont.Size, ot.Font.Size);
 		}
 	}
 }

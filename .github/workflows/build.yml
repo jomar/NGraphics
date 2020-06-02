@@ -1,0 +1,109 @@
+name: Build
+
+on: [push, pull_request]
+
+jobs:
+  mac-build:
+
+    runs-on: macOS-10.14
+    
+    needs: windows-build
+    
+    steps:
+    
+    - uses: actions/checkout@v1
+    
+    - uses: actions/download-artifact@master
+      with:
+        name: NGraphics
+        path: Build/NGraphics
+        
+    - uses: actions/download-artifact@master
+      with:
+        name: NGraphics.Net
+        path: Build/NGraphics.Net
+        
+    - uses: actions/download-artifact@master
+      with:
+        name: NGraphics.UWP
+        path: Build/NGraphics.UWP
+        
+    - name: Build NGraphics
+      run: |
+        msbuild /p:Configuration=Release /t:Restore NGraphics/NGraphics.csproj
+        msbuild /p:Configuration=Release NGraphics/NGraphics.csproj
+      
+    - name: Build NGraphics.Mac
+      run: |
+        msbuild /p:Configuration=Release Platforms/NGraphics.Mac/NGraphics.Mac.csproj
+      
+    - name: Build NGraphics.iOS
+      run: |
+        msbuild /p:Configuration=Release Platforms/NGraphics.iOS/NGraphics.iOS.csproj
+      
+    - name: Build NGraphics.Watch
+      run: |
+        msbuild /p:Configuration=Release Platforms/NGraphics.Watch/NGraphics.Watch.csproj
+      
+    - name: Build NGraphics.TV
+      run: |
+        msbuild /p:Configuration=Release Platforms/NGraphics.TV/NGraphics.TV.csproj
+      
+    - name: Build NGraphics.Android
+      run: |
+        msbuild /p:Configuration=Release Platforms/NGraphics.Android/NGraphics.Android.csproj
+      
+    - name: Package
+      run: |
+        mkdir PackageOut
+        nuget pack NGraphics.nuspec -OutputDirectory PackageOut
+      
+    - uses: actions/upload-artifact@master
+      with:
+        name: Package
+        path: PackageOut
+        
+  windows-build:
+
+    runs-on: windows-2019
+    
+    steps:
+    
+    - uses: actions/checkout@v1
+    
+    - name: Build NGraphics
+      shell: cmd
+      run: |
+        rem "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+        set PATH="C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin";%PATH%
+        $env:Path = "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin" + $env:Path
+        msbuild /p:Configuration=Release /t:Restore NGraphics\NGraphics.csproj
+        msbuild /p:Configuration=Release NGraphics\NGraphics.csproj
+    
+    - uses: actions/upload-artifact@master
+      with:
+        name: NGraphics
+        path: NGraphics\bin\Release\netstandard1.0
+
+    - name: Build NGraphics.Net
+      shell: cmd
+      run: |
+        set PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin;%PATH%
+        msbuild /p:Configuration=Release Platforms\NGraphics.Net\NGraphics.Net.csproj
+    
+    - uses: actions/upload-artifact@master
+      with:
+        name: NGraphics.Net
+        path: Platforms\NGraphics.Net\bin\Release
+        
+    - name: Build NGraphics.UWP
+      shell: cmd
+      run: |
+        set PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin;%PATH%
+        msbuild /p:Configuration=Release /t:Restore Platforms\NGraphics.UWP\NGraphics.UWP.csproj
+        msbuild /p:Configuration=Release Platforms\NGraphics.UWP\NGraphics.UWP.csproj
+    
+    - uses: actions/upload-artifact@master
+      with:
+        name: NGraphics.UWP
+        path: Platforms\NGraphics.UWP\bin\Release
