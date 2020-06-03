@@ -20,6 +20,7 @@ namespace NGraphics
 		public List<Exception> Errors { get; } = new List<Exception> ();
 
 		readonly Dictionary<string, XElement> defs = new Dictionary<string, XElement> ();
+		readonly Dictionary<string, string> classStyles = new Dictionary<string, string> ();
 		//		readonly XNamespace ns;
 
 		static readonly XmlReaderSettings readerSettings = new XmlReaderSettings {
@@ -50,6 +51,8 @@ namespace NGraphics
 			Read (XDocument.Load (xmlReader), defaultBrush, defaultFont);
 		}
 
+		static readonly Regex styleClasses = new Regex("\\.([a-zA-Z0-9]+).*?{(.*).*?}");
+
 		void Read (XDocument doc, Brush defaultBrush, Font defaultFont)
 		{
 			var svg = doc.Root;
@@ -62,6 +65,17 @@ namespace NGraphics
 				var idA = d.Attribute ("id");
 				if (idA != null) {
 					defs [ReadString (idA).Trim ()] = d;
+				}
+			}
+
+			foreach (var d in svg.Descendants ()) {
+				if (d.Name.LocalName == "style") {
+					var match = styleClasses.Match(d.Value);
+					while(match.Success)
+					{
+						classStyles.Add(match.Groups[1].Value, match.Groups[2].Value);
+						match = match.NextMatch();
+					}
 				}
 			}
 
@@ -325,6 +339,7 @@ namespace NGraphics
 				case "clipPath":
 				case "linearGradient":
 				case "radialGradient":
+				case "style":
 				break;
 
 
@@ -429,7 +444,12 @@ namespace NGraphics
 		{
 			hasBrush = false;
 			hasPen = false;
-			
+
+
+			if (key.Equals("class", StringComparison.CurrentCultureIgnoreCase) && classStyles.ContainsKey(value))
+			{
+				ApplyStyle(classStyles[value], ref pen, out hasPen, ref brush, out hasBrush);
+			}
 			//
 			// Pen attributes
 			//
